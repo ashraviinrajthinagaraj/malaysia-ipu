@@ -433,8 +433,28 @@
     };
   }
 
+  // ------------------------------------------------------------ forecast (estimate) & wind
+
+  /* Whether a station's forecast estimate can be shown next to its current official reading. */
+  function forecastStatus(fc, st, now) {
+    if (!fc) return { ok: false, reason: "No forecast estimate is available for this station." };
+    if (!stationCurrent(st, now)) return { ok: false, reason: "The station has no current official reading, so no estimate is shown." };
+    var anchor = parseTime(fc.anchor), obs = parseTime(st.observed);
+    if (!anchor || !obs || hoursBetween(anchor, obs) > 2) {
+      return { ok: false, reason: "The forecast estimate is older than the latest official reading. It will be refreshed with the next hourly update." };
+    }
+    return { ok: true };
+  }
+
+  /* Compass name for where a wind comes FROM, given its u (east) and v (north) components. */
+  var COMPASS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
+  function windFrom(u, v) {
+    var deg = (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360;
+    return COMPASS[Math.round(deg / 45) % 8];
+  }
+
   var api = {
-    TZ: TZ, STALE_HOURS: STALE_HOURS, CATEGORIES: CATEGORIES, categoryFor: categoryFor, pollutantName: pollutantName,
+    TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, STALE_HOURS: STALE_HOURS, CATEGORIES: CATEGORIES, categoryFor: categoryFor, pollutantName: pollutantName,
     parseTime: parseTime, mytDateKey: mytDateKey, fmtTime: fmtTime, fmtDateTime: fmtDateTime, fmtDayKey: fmtDayKey,
     addDaysKey: addDaysKey, weekdayOfKey: weekdayOfKey, ago: ago, freshness: freshness, stationCurrent: stationCurrent,
     haversineKm: haversineKm, byDistance: byDistance, matchStations: matchStations, noSchoolReason: noSchoolReason,

@@ -47,7 +47,10 @@
 
   <div class="map-wrap">
     <div id="map" class="map" role="region" aria-label="Map of monitoring stations in Malaysia"></div>
-    <button id="map-home" type="button" class="map-chip" hidden>Show all of Malaysia</button>
+    <div class="map-chips">
+      <button id="src-btn" type="button" class="map-chip alt" aria-pressed="false">Where the haze comes from</button>
+      <button id="map-home" type="button" class="map-chip" hidden>Show all of Malaysia</button>
+    </div>
     <div class="map-legend" id="map-legend" aria-hidden="true"></div>
     <div id="map-fallback" class="map-fallback" hidden></div>
   </div>
@@ -61,6 +64,7 @@
       <div id="loc-info"></div>
       <div id="prediction" class="prediction"></div>
       <div id="trend"></div>
+      <div id="forecast"></div>
     </section>
 
     <section id="overview" aria-labelledby="overview-h">
@@ -69,6 +73,12 @@
       <div id="dist" class="dist"></div>
       <h3>Highest reading in each state</h3>
       <div id="state-bars" class="state-bars"></div>
+      <div id="outlook" class="outlook"></div>
+    </section>
+
+    <section id="sources-sec" aria-labelledby="sources-h">
+      <h2 id="sources-h">Where the haze comes from</h2>
+      <div id="sources-body"></div>
     </section>
 
     <section id="stations" aria-labelledby="stations-h">
@@ -102,7 +112,7 @@
     </section>
 
     <footer class="foot">
-      <p>Readings: Department of Environment Malaysia, <a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">APIMS</a>. History: <a href="https://open.dosm.gov.my/data-catalogue/air_pollution" rel="noopener">OpenDOSM</a>. Map: <a href="https://openfreemap.org" rel="noopener">OpenFreeMap</a>, <a href="https://openmaptiles.org" rel="noopener">© OpenMapTiles</a>, <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a>; map engine MapLibre GL JS. Place search: Nominatim (OpenStreetMap).</p>
+      <p>Readings: Department of Environment Malaysia, <a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">APIMS</a>. History: <a href="https://open.dosm.gov.my/data-catalogue/air_pollution" rel="noopener">OpenDOSM</a>. Map: <a href="https://openfreemap.org" rel="noopener">OpenFreeMap</a>, <a href="https://openmaptiles.org" rel="noopener">© OpenMapTiles</a>, <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a>; map engine MapLibre GL JS. Place search: Nominatim (OpenStreetMap). Forecast estimate: CAMS (Copernicus Atmosphere Monitoring Service) via <a href="https://open-meteo.com" rel="noopener">Open-Meteo</a>. Fire hotspots: <a href="https://firms.modaps.eosdis.nasa.gov/" rel="noopener">NASA FIRMS</a>. Wind: Open-Meteo.</p>
       <p>An independent dashboard, not an official government service. School-status predictions are not closure announcements.</p>
       <p class="credit">Created by Ashraviinraj Thinagaraj.</p>
     </footer>

@@ -180,3 +180,18 @@ test("national summary picks highest and lowest current readings only", () => {
   assert.equal(sum.noReading, 2);
   assert.equal(sum.counts.unhealthy, 1);
 });
+
+test("forecast estimate is shown only next to a current official reading", () => {
+  const s = st("A", "Klang", "Selangor", 3.0, 101.4, 170, "2026-10-17T14:00:00+08:00");
+  assert.equal(L.forecastStatus({ anchor: "2026-10-17T14:00" }, s, NOW).ok, true);
+  assert.equal(L.forecastStatus(null, s, NOW).ok, false);
+  assert.equal(L.forecastStatus({ anchor: "2026-10-17T09:00" }, s, NOW).ok, false);     // estimate older than the reading
+  const old = { ...s, observed: "2026-10-17T08:00:00+08:00" };
+  assert.equal(L.forecastStatus({ anchor: "2026-10-17T08:00" }, old, NOW).ok, false);   // reading itself outdated
+});
+
+test("wind direction names where the wind comes from", () => {
+  assert.equal(L.windFrom(3.54, 3.54), "south-west");   // blowing toward the north-east
+  assert.equal(L.windFrom(0, -5), "north");
+  assert.equal(L.windFrom(-5, 0), "east");
+});

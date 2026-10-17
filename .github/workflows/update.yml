@@ -54,11 +54,19 @@ jobs:
         continue-on-error: true
         run: python3 scripts/build_schools.py
 
+      - name: Make the haze forecast estimate (not official)
+        continue-on-error: true
+        run: python3 scripts/fetch_forecast.py
+
+      - name: Read fire hotspots and wind (haze sources)
+        continue-on-error: true
+        run: python3 scripts/fetch_sources.py
+
       - name: Save the data in the repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/data
+          git add docs/data data_cache
           if git diff --cached --quiet; then
             echo "No data changes."
           else

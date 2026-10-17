@@ -83,6 +83,13 @@ Closures are actually decided and announced by KPM, JPN and PPD. If the rule cha
 
 ---
 
+## Forecast estimate and haze sources
+
+These two features are kept apart from the official data and are labelled on the page.
+
+- **Forecast (estimate, not official):** `scripts/fetch_forecast.py` downloads the CAMS PM2.5 forecast (Copernicus Atmosphere Monitoring Service, via Open-Meteo) for every station at most every 3 hours, and scales it to that station's official IPU over the last 24 hours. It writes `docs/data/forecast.json`. It is never used for the official reading or the school-closure check, which use DOE APIMS only.
+- **Where the haze comes from:** `scripts/fetch_sources.py` reads NASA FIRMS satellite fire detections (VIIRS, last 24 hours; anything older than 36 hours is never shown) and the current 10 m wind from the Open-Meteo weather model. It writes `docs/data/sources.json`. The map's "Where the haze comes from" button shows the hotspots and animated wind.
+
 ## Files
 
 ```

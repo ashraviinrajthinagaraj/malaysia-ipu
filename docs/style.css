@@ -126,8 +126,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* ---------------------------------------------------------------- map */
 .map { position: absolute; inset: 0; }
+.map-chips { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 3; display: flex; flex-wrap: wrap; gap: 8px; pointer-events: none; }
+.map-chips > * { pointer-events: auto; }
 .map-chip {
-  position: absolute; top: 12px; left: 12px; z-index: 3; border: 0; border-radius: 999px;
+  border: 0; border-radius: 999px;
   background: var(--btn-bg); color: var(--btn-ink); font-weight: 600; font-size: .9rem; padding: 8px 14px;
   box-shadow: 0 6px 16px -6px var(--shadow); animation: drop-in .25s var(--ease);
 }
@@ -360,6 +362,44 @@ details li { margin-bottom: .35rem; }
 [data-theme="neon"] .maplibregl-ctrl.maplibregl-ctrl-attrib { background: rgba(7, 11, 24, .78); color: #8394ba; }
 [data-theme="neon"] .maplibregl-ctrl-attrib a { color: #b9c8e8; }
 [data-theme="neon"] .maplibregl-ctrl-attrib-button { filter: invert(1); }
+
+/* ---------------------------------------------------------------- haze sources & forecast */
+.map-chip.alt { background: var(--glass); color: var(--ink); border: 1.5px solid var(--field-line); backdrop-filter: blur(6px); }
+.map-chip.alt[aria-pressed="true"] { background: var(--fire); color: #fff; border-color: var(--fire); }
+.wind-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.map-legend .wind-key { width: 16px; height: 2px; border-radius: 1px; }
+.forecast, .outlook { margin-top: 22px; padding: 16px; border: 1.5px dashed var(--fc); border-radius: 16px; background: var(--fc-bg); }
+.outlook { margin-top: 26px; }
+.outlook:empty, .forecast:empty { display: none; }
+.fc-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin-bottom: 8px; }
+.fc-head h3 { margin: 0; }
+.fc-tag { display: inline-flex; align-items: center; border: 1.5px solid var(--fc); color: var(--fc); border-radius: 999px; padding: 2px 10px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.fc-lead { color: var(--ink-2); }
+.fc-lead b { color: var(--ink); font: 700 1.15rem var(--display); }
+.fc-note { font-size: .85rem; color: var(--ink-2); margin-top: 10px; }
+.fc-list { display: grid; gap: 2px; margin: 6px 0 8px; }
+.fc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; border: 0; background: none; text-align: left; padding: 7px 6px; border-radius: 8px; color: var(--ink); }
+.fc-row:hover { background: rgba(127, 127, 127, .08); }
+.fc-row .nm { font-weight: 600; }
+.fc-row .sub { grid-column: 1 / -1; font-size: .8rem; color: var(--muted); }
+.fc-row .pk { font: 700 1rem var(--display); color: var(--ink); white-space: nowrap; }
+.fc-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .82rem; color: var(--ink-2); margin-top: 6px; }
+.fc-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fc-legend .k-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink); }
+.fc-legend .k-dash { width: 18px; height: 0; border-top: 2px dashed var(--fc); }
+.fc-legend .k-band { width: 14px; height: 10px; border-radius: 3px; background: var(--fc); opacity: .25; }
+.src-stats { display: grid; gap: 10px; margin: 4px 0 12px; }
+.src-stat { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; align-items: baseline; }
+.src-stat .v { font: 800 2rem/1 var(--display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.src-stat .v.fire { color: var(--fire); }
+.src-stat p { margin: 0; color: var(--ink-2); }
+.src-btn2 { border: 0; border-radius: 12px; background: var(--btn-bg); color: var(--btn-ink); font-weight: 600; padding: 10px 16px; margin: 4px 0 10px; }
+:root { --fc: #b5179e; --fc-bg: rgba(181, 23, 158, .045); --fire: #e8590c; }
+:root[data-theme="neon"] { --fc: #c084fc; --fc-bg: rgba(192, 132, 252, .07); --fire: #ff8a3d; }
+[data-theme="neon"] .forecast, [data-theme="neon"] .outlook { box-shadow: 0 0 26px -12px var(--fc); }
+[data-theme="neon"] .fc-tag { box-shadow: 0 0 10px -2px var(--fc); }
+[data-theme="neon"] .src-stat .v.fire { text-shadow: 0 0 18px var(--fire); }
+[data-theme="neon"] .map-chip.alt[aria-pressed="true"] { box-shadow: 0 0 18px -2px var(--fire); color: #1a0800; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

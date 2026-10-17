@@ -14,7 +14,8 @@
       off: "#c9d3d6", offInk: "#64767d", haze: 0.2, link: "#172a35",
       grid: "#e9efee", axis: "#64767d", ink: "#172a35", halo: "#ffffff", outdoor: "#8d9da2", closure: "#c4442f",
       series: "#2a78d6", seriesB: "#eb6834", area: 0.08,
-      fallback: { sea: "#dfe8ec", land: "#f6f8f8", coast: "#a9b8bd" }, meta: "#ffffff"
+      fallback: { sea: "#dfe8ec", land: "#f6f8f8", coast: "#a9b8bd" }, meta: "#ffffff",
+      forecast: "#b5179e", fireCore: "#d9480f", fireGlow: "#ff922b", wind: "rgba(23, 42, 53, 0.55)"
     },
     neon: {
       style: "https://tiles.openfreemap.org/styles/dark",
@@ -23,17 +24,21 @@
       off: "#33406a", offInk: "#8394ba", haze: 0.34, link: "#47f3ff",
       grid: "#162043", axis: "#8394ba", ink: "#eaf3ff", halo: "#070b18", outdoor: "#5b6fa8", closure: "#ff3d81",
       series: "#47f3ff", seriesB: "#ff5ce1", area: 0.14,
-      fallback: { sea: "#04060d", land: "#0f1730", coast: "#2b3d70" }, meta: "#070b18"
+      fallback: { sea: "#04060d", land: "#0f1730", coast: "#2b3d70" }, meta: "#070b18",
+      forecast: "#c084fc", fireCore: "#ffd08a", fireGlow: "#ff3d81", wind: "rgba(71, 243, 255, 0.8)"
     }
   };
   var THEME_KEY = "ipu-theme";
   var MY_BOUNDS = [[99.6, 0.85], [119.3, 7.4]];
+  var REGION_BOUNDS = [[94.5, -6], [120.5, 8.5]];     // Sumatra and Borneo around Malaysia
+  var FIRE_MAX_AGE_MIN = 36 * 60;
   var REDUCE = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var S = { data: null, rule: null, dosm: null, schools: null, schoolsMeta: null, schoolsLoading: null,
+  var S = { data: null, rule: null, dosm: null, forecast: null, sources: null, schools: null, schoolsMeta: null, schoolsLoading: null,
             sel: null, lastPlaceQuery: 0, firstPaint: true };
   var M = { map: null, styleReady: false, introDone: false, markers: {}, pin: null, km: null,
-            fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5 };
+            fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5, sourcesOn: false };
+  var W = { canvas: null, ctx: null, parts: [], raf: 0, running: false, dpr: 1 };
 
   function $(id) { return document.getElementById(id); }
   function themeName() { return document.documentElement.getAttribute("data-theme") === "neon" ? "neon" : "light"; }
@@ -167,6 +172,15 @@
     map.on("sourcedata", function (e) { if (e.tile && e.sourceId !== "stations" && e.sourceId !== "link") M.tileOk = true; });
     map.on("style.load", onStyleLoad);
     map.on("zoom", zoomClass);
+    map.on("move", function () { if (W.ctx) W.ctx.clearRect(0, 0, W.canvas.width, W.canvas.height); });
+    map.on("moveend", function () { if (M.sourcesOn && REDUCE) drawStaticWind(); });
+    map.on("resize", sizeWindCanvas);
+    W.canvas = document.createElement("canvas");
+    W.canvas.className = "wind-canvas";
+    W.canvas.setAttribute("aria-hidden", "true");
+    map.getCanvasContainer().appendChild(W.canvas);
+    W.ctx = W.canvas.getContext("2d");
+    sizeWindCanvas();
     map.on("moveend", function () { $("map-home").hidden = !(map.getZoom() > M.homeZoom + 0.8); });
     setTimeout(function () { if (!M.styleReady && !M.fallbackUsed) useFallback(); }, 9000);
     zoomClass();
@@ -215,6 +229,18 @@
     if (!map.getLayer("link")) {
       map.addLayer({ id: "link", type: "line", source: "link", layout: { "line-cap": "round" },
         paint: { "line-color": T().link, "line-width": 2.2, "line-dasharray": [1.2, 1.6], "line-opacity": 0.85 } });
+    }
+    if (!map.getSource("fires")) map.addSource("fires", { type: "geojson", data: firesGeo() });
+    var vis = M.sourcesOn ? "visible" : "none";
+    if (!map.getLayer("fires-glow")) {
+      map.addLayer({ id: "fires-glow", type: "circle", source: "fires", layout: { visibility: vis }, paint: {
+        "circle-color": T().fireGlow, "circle-blur": 1, "circle-opacity": 0.55,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 6, 8, 10, 14] } });
+    }
+    if (!map.getLayer("fires")) {
+      map.addLayer({ id: "fires", type: "circle", source: "fires", layout: { visibility: vis }, paint: {
+        "circle-color": T().fireCore, "circle-opacity": 0.95,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 1.6, 6, 2.6, 10, 4.5] } });
     }
     var cam = map.cameraForBounds(MY_BOUNDS, { padding: pad() });
     if (cam) M.homeZoom = cam.zoom;
@@ -316,7 +342,7 @@
     if (!M.map) return;
     if (!M.styleReady || !M.introDone) { M.pending = target; return; }
     var cam = target.bounds
-      ? M.map.cameraForBounds(target.bounds, { padding: pad(true), maxZoom: target.maxZoom || 12 })
+      ? M.map.cameraForBounds(target.bounds, { padding: target.padding || pad(true), maxZoom: target.maxZoom || 12 })
       : { center: target.center, zoom: target.zoom };
     if (!cam) return;
     if (REDUCE) M.map.jumpTo({ center: cam.center, zoom: cam.zoom });
@@ -337,9 +363,295 @@
   }
 
   function renderLegend() {
-    $("map-legend").innerHTML = L.CATEGORIES.map(function (c) {
+    var html = L.CATEGORIES.map(function (c) {
       return '<span><i style="' + swatch(T().cats[c.key]) + '"></i>' + esc(c.label) + "</span>";
     }).join("");
+    if (M.sourcesOn) {
+      html += '<span><i style="' + swatch(T().fireCore) + '"></i>Fire hotspot, last 24 h</span>' +
+              '<span><i class="wind-key" style="background:' + T().wind + '"></i>Surface wind (model)</span>';
+    }
+    $("map-legend").innerHTML = html;
+  }
+
+  // ================================================================ haze sources: fires & wind
+
+  function freshFires() {
+    var f = S.sources && S.sources.fires, nowMin = Date.now() / 60000;
+    if (!f || !f.points) return [];
+    return f.points.filter(function (p) { return p.length > 3 && nowMin - p[3] <= FIRE_MAX_AGE_MIN; });
+  }
+
+  function firesGeo() {
+    return { type: "FeatureCollection", features: freshFires().map(function (p) {
+      return { type: "Feature", geometry: { type: "Point", coordinates: [p[0], p[1]] }, properties: { frp: p[2] } };
+    }) };
+  }
+
+  function windData() {
+    var w = S.sources && S.sources.wind;
+    if (!w || !w.u || !w.grid || !w.fetched_at) return null;
+    var age = (Date.now() - new Date(w.fetched_at).getTime()) / 3600000;
+    return age <= 12 ? w : null;          // older wind is not shown as current
+  }
+
+  function windAt(lon, lat) {
+    var w = W.grid, g = w.grid, fx = (lon - g.lon0) / g.dlon, fy = (lat - g.lat0) / g.dlat;
+    if (fx < 0 || fy < 0 || fx > g.nx - 1 || fy > g.ny - 1) return null;
+    var i = Math.floor(fx), j = Math.floor(fy), i1 = Math.min(i + 1, g.nx - 1), j1 = Math.min(j + 1, g.ny - 1), tx = fx - i, ty = fy - j;
+    function bl(arr) {
+      var a = arr[j * g.nx + i], b = arr[j * g.nx + i1], c = arr[j1 * g.nx + i], d = arr[j1 * g.nx + i1];
+      if (a === null || b === null || c === null || d === null) return null;
+      return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+    }
+    var u = bl(w.u), v = bl(w.v);
+    return u === null || v === null ? null : { u: u, v: v };
+  }
+
+  function sizeWindCanvas() {
+    if (!W.canvas || !M.map) return;
+    var box = M.map.getContainer().getBoundingClientRect();   // the canvas container itself has no size
+    W.dpr = Math.min(2, window.devicePixelRatio || 1);
+    W.canvas.width = Math.max(1, Math.round(box.width * W.dpr));
+    W.canvas.height = Math.max(1, Math.round(box.height * W.dpr));
+    W.canvas.style.width = box.width + "px";
+    W.canvas.style.height = box.height + "px";
+  }
+
+  function spawn(p) {
+    var g = W.grid.grid;
+    p.lon = g.lon0 + Math.random() * (g.nx - 1) * g.dlon;
+    p.lat = g.lat0 + Math.random() * (g.ny - 1) * g.dlat;
+    p.age = Math.floor(Math.random() * 90);
+  }
+
+  function windStep() { return 0.0035 * Math.pow(2, 5 - M.map.getZoom()); }   // degrees per (m/s) per frame
+
+  function windFrame() {
+    if (!W.running) return;
+    var ctx = W.ctx, map = M.map, d = W.dpr, k = windStep();
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.fillStyle = "rgba(0,0,0,0.9)";
+    ctx.fillRect(0, 0, W.canvas.width, W.canvas.height);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.strokeStyle = T().wind;
+    ctx.lineWidth = 1.3 * d;
+    ctx.beginPath();
+    W.parts.forEach(function (p) {
+      var w = windAt(p.lon, p.lat);
+      if (!w || p.age++ > 100) { spawn(p); p.age = 0; return; }
+      var a = map.project([p.lon, p.lat]);
+      p.lon += w.u * k / Math.cos(p.lat * Math.PI / 180);
+      p.lat += w.v * k;
+      var b = map.project([p.lon, p.lat]);
+      ctx.moveTo(a.x * d, a.y * d);
+      ctx.lineTo(b.x * d, b.y * d);
+    });
+    ctx.stroke();
+    W.raf = requestAnimationFrame(windFrame);
+  }
+
+  /* With reduced motion: short still streamlines instead of moving particles. */
+  function drawStaticWind() {
+    if (!W.ctx || !W.grid) return;
+    var ctx = W.ctx, map = M.map, d = W.dpr, k = windStep() * 6, g = W.grid.grid;
+    ctx.clearRect(0, 0, W.canvas.width, W.canvas.height);
+    ctx.strokeStyle = T().wind; ctx.lineWidth = 1.3 * d; ctx.beginPath();
+    for (var lat = g.lat0; lat <= g.lat0 + (g.ny - 1) * g.dlat; lat += g.dlat / 2) {
+      for (var lon = g.lon0; lon <= g.lon0 + (g.nx - 1) * g.dlon; lon += g.dlon / 2) {
+        var pl = lon, pa = lat, first = map.project([pl, pa]);
+        ctx.moveTo(first.x * d, first.y * d);
+        for (var s = 0; s < 6; s++) {
+          var w = windAt(pl, pa);
+          if (!w) break;
+          pl += w.u * k / Math.cos(pa * Math.PI / 180); pa += w.v * k;
+          var q = map.project([pl, pa]);
+          ctx.lineTo(q.x * d, q.y * d);
+        }
+      }
+    }
+    ctx.stroke();
+  }
+
+  function startWind() {
+    W.grid = windData();
+    if (!W.ctx || !W.grid) return;
+    sizeWindCanvas();
+    if (REDUCE) { drawStaticWind(); return; }
+    var n = isMobile() ? 450 : 900;
+    W.parts = [];
+    for (var i = 0; i < n; i++) { var p = {}; spawn(p); W.parts.push(p); }
+    if (!W.running) { W.running = true; W.raf = requestAnimationFrame(windFrame); }
+  }
+
+  function stopWind() {
+    W.running = false;
+    cancelAnimationFrame(W.raf);
+    if (W.ctx) W.ctx.clearRect(0, 0, W.canvas.width, W.canvas.height);
+  }
+
+  function setSources(on, fly) {
+    M.sourcesOn = on;
+    var b = $("src-btn");
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "Hide haze sources" : "Where the haze comes from";
+    if (M.map && M.styleReady) {
+      ["fires-glow", "fires"].forEach(function (id) { if (M.map.getLayer(id)) M.map.setLayoutProperty(id, "visibility", on ? "visible" : "none"); });
+    }
+    if (on) startWind(); else stopWind();
+    renderLegend();
+    renderSourcesSection();
+    if (on && fly) flyTo({ bounds: isMobile() ? [[96.5, -4.5], [118.5, 7.5]] : REGION_BOUNDS, maxZoom: 6, padding: isMobile() ? { top: 56, bottom: 64, left: 6, right: 6 } : null });
+  }
+
+  function updateSourcesOnMap() {
+    if (M.map && M.styleReady && M.map.getSource("fires")) M.map.getSource("fires").setData(firesGeo());
+    if (M.sourcesOn) startWind();
+  }
+
+  function renderSourcesSection() {
+    var box = $("sources-body"), src = S.sources;
+    if (!src) { box.innerHTML = '<p class="muted">Fire and wind data has not been downloaded yet. It is added by the hourly update.</p>'; return; }
+    var f = src.fires || {}, pts = freshFires(), w = windData(), html = '<div class="src-stats">';
+    if (pts.length) {
+      var newest = f.newest_recent_detection ? L.parseTime(f.newest_recent_detection) : null;
+      html += '<div class="src-stat"><span class="v fire">' + pts.length.toLocaleString("en-MY") + "</span><p>fire hotspots detected by NASA satellites around Malaysia, Sumatra and Borneo in the last 24 hours" +
+        (newest ? " (latest pass " + esc(L.fmtDateTime(newest)) + ")" : "") + ".</p></div>";
+    } else if (f.newest_detection) {
+      html += '<div class="src-stat"><span class="v fire">0</span><p>No satellite fire detections from the last 36 hours are available. The newest detections NASA has published for this region are from ' +
+        esc(L.fmtDateTime(L.parseTime(f.newest_detection))) + ", so none are shown as current.</p></div>";
+    } else {
+      html += '<div class="src-stat"><span class="v fire">–</span><p>Satellite fire data could not be read on the last update.</p></div>';
+    }
+    if (w) {
+      // prevailing wind between Sumatra and the Peninsula
+      var su = 0, sv = 0, cnt = 0, g = w.grid;
+      for (var j = 0; j < g.ny; j++) for (var i = 0; i < g.nx; i++) {
+        var lon = g.lon0 + i * g.dlon, lat = g.lat0 + j * g.dlat, u = w.u[j * g.nx + i], v = w.v[j * g.nx + i];
+        if (lon >= 96 && lon <= 104 && lat >= -4 && lat <= 6 && u !== null && v !== null) { su += u; sv += v; cnt++; }
+      }
+      if (cnt) {
+        var mu = su / cnt, mv = sv / cnt, spd = Math.sqrt(mu * mu + mv * mv) * 3.6;
+        html += '<div class="src-stat"><span class="v">' + Math.round(spd) + '</span><p>km/h: surface wind over Sumatra and the Strait of Malacca, mostly from the <b>' +
+          esc(L.windFrom(mu, mv)) + "</b> (weather model, " + esc(L.fmtDateTime(L.parseTime(w.fetched_at))) + ").</p></div>";
+      }
+    }
+    html += "</div><p>Smoke from fires upwind can be carried to Malaysia by these winds. The map shows where fires and winds are now; it does not trace actual smoke, and fire detections do not show how much smoke a fire makes.</p>" +
+      '<button type="button" class="src-btn2" id="src-show">' + (M.sourcesOn ? "Hide fires and wind on the map" : "Show fires and wind on the map") + "</button>" +
+      '<p class="small muted">Fires: <a href="https://firms.modaps.eosdis.nasa.gov/" rel="noopener">NASA FIRMS</a> near-real-time VIIRS detections. ' + esc(f.note || "") +
+      " Wind: Open-Meteo 10 m wind, a model estimate. Neither is official IPU data.</p>";
+    box.innerHTML = html;
+  }
+
+  // ================================================================ forecast (estimate, never official)
+
+  function whenText(k) {
+    var t = L.parseTime(k);
+    return L.fmtTime(t) + " on " + L.fmtDayKey(L.mytDateKey(t)).replace(/ \d{4}$/, "");
+  }
+
+  function forecastNote() {
+    var f = S.forecast;
+    return '<p class="fc-note">This estimate is <b>not from DOE</b>. It is not the official IPU and is not used for the school closure check. ' +
+      "It scales the CAMS air-quality model forecast (Copernicus, via Open-Meteo) to this station's official readings, so it can be wrong, especially when weather changes quickly.</p>" +
+      (f && f.method ? '<details class="inline-details"><summary>How this estimate is made</summary><div><ul>' +
+        f.method.map(function (m) { return "<li>" + esc(m) + "</li>"; }).join("") + "</ul></div></details>" : "");
+  }
+
+  function renderForecast(box, st) {
+    box.innerHTML = "";
+    if (!st) return;
+    var fcAll = S.forecast, fc = fcAll && fcAll.stations ? fcAll.stations[st.id] : null, n = now();
+    var head = '<div class="fc-head"><h3>Forecast for ' + esc(st.name) + '</h3><span class="fc-tag">Estimate, not official</span></div>';
+    if (!fcAll) { box.innerHTML = head + '<p class="muted">The forecast estimate has not been made yet. It is added by the hourly update.</p>'; return; }
+    var stat = L.forecastStatus(fc, st, n);
+    if (!stat.ok) { box.innerHTML = head + '<p class="muted">' + esc(fcAll.skipped && fcAll.skipped[st.id] ? "No estimate: " + fcAll.skipped[st.id] + "." : stat.reason) + "</p>" + forecastNote(); return; }
+    var reach = { likely: "Likely", possible: "Possible", unlikely: "Unlikely" }[fc.reach200_24h] || "—";
+    var pk = fc.peak24;
+    var html = head +
+      '<p class="fc-lead">Estimated peak in the next 24 hours: <b>' + pk.est + "</b> (range " + pk.lo + " to " + pk.hi + "), around " + esc(whenText(pk.time)) + ".</p>" +
+      '<dl class="facts"><dt>Could reach 200 in the next 24 hours</dt><dd>' + reach + "</dd>" +
+      (fc.morning ? "<dt>Around 07:00 tomorrow</dt><dd>" + fc.morning.est + " (range " + fc.morning.lo + " to " + fc.morning.hi + ")</dd>" : "") +
+      (fcAll.model_stale ? "<dt>Model data</dt><dd>More than a day old</dd>" : "") + "</dl>";
+    box.innerHTML = html;
+    var chart = document.createElement("div"); chart.className = "chart"; box.appendChild(chart);
+    drawForecastChart(chart, st, fc);
+    box.insertAdjacentHTML("beforeend", '<div class="fc-legend"><span><i class="k-dot"></i>Official reading now (DOE)</span><span><i class="k-dash"></i>Estimate</span><span><i class="k-band"></i>Range</span></div>' + forecastNote());
+  }
+
+  function drawForecastChart(chart, st, fc) {
+    var t0 = L.parseTime(fc.anchor), times = [], i;
+    for (i = 0; i < fc.est.length; i++) times.push(L.parseTime(fc.start).getTime() + i * 3600000);
+    var W2 = Math.max(280, chart.clientWidth || 400), H = 190, padL = 32, padR = 8, padT = 14, padB = 26;
+    var x0 = t0.getTime(), x1 = times[times.length - 1];
+    var ymax = niceMax(Math.max(st.api, Math.max.apply(null, fc.hi)), 220);
+    var sx = function (t) { return padL + ((t - x0) / Math.max(1, x1 - x0)) * (W2 - padL - padR); };
+    var sy = function (v) { return H - padB - (v / ymax) * (H - padT - padB); };
+    var svg = svgEl("svg", { viewBox: "0 0 " + W2 + " " + H, width: W2, height: H, role: "img", "aria-label": "Forecast estimate for " + st.name + ", next " + fc.est.length + " hours" });
+    for (var g = 0; g <= ymax; g += 50) {
+      svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
+      svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
+    }
+    var step = 12 * 3600000;
+    for (var tt = Math.ceil(x0 / step) * step; tt <= x1; tt += step) {
+      var dt = new Date(tt);
+      svg.appendChild(svgEl("text", { x: sx(tt), y: H - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" },
+        L.fmtTime(dt) === "00:00" ? L.fmtDayKey(L.mytDateKey(dt)).slice(0, 3) : L.fmtTime(dt)));
+    }
+    [[S.rule.outdoor.threshold, T().outdoor], [S.rule.closure.threshold, T().closure]].forEach(function (r) {
+      svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(r[0]), y2: sy(r[0]), stroke: r[1], "stroke-dasharray": "4 4" }));
+    });
+    svg.appendChild(svgEl("text", { x: padL + 4, y: sy(S.rule.closure.threshold) - 5, "font-size": 11, fill: T().closure, stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "200: school-closure level"));
+    var t24 = x0 + 24 * 3600000;
+    if (t24 < x1) {
+      svg.appendChild(svgEl("line", { x1: sx(t24), x2: sx(t24), y1: padT, y2: H - padB, stroke: T().axis, "stroke-dasharray": "2 3", opacity: 0.7 }));
+      svg.appendChild(svgEl("text", { x: sx(t24) - 4, y: padT + 10, "font-size": 10.5, fill: T().axis, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "next 24 h"));
+    }
+    // range band, then dashed estimate line, both starting at the official reading
+    var top = [[x0, st.api]].concat(times.map(function (t, k) { return [t, fc.hi[k]]; }));
+    var bot = [[x0, st.api]].concat(times.map(function (t, k) { return [t, fc.lo[k]]; })).reverse();
+    var band = top.concat(bot).map(function (p, k) { return (k ? "L" : "M") + sx(p[0]).toFixed(1) + " " + sy(p[1]).toFixed(1); }).join(" ") + " Z";
+    svg.appendChild(svgEl("path", { d: band, fill: T().forecast, opacity: 0.16 }));
+    var line = [[x0, st.api]].concat(times.map(function (t, k) { return [t, fc.est[k]]; }));
+    svg.appendChild(svgEl("path", { d: line.map(function (p, k) { return (k ? "L" : "M") + sx(p[0]).toFixed(1) + " " + sy(p[1]).toFixed(1); }).join(" "),
+      fill: "none", stroke: T().forecast, color: T().forecast, "stroke-width": 2.2, "stroke-dasharray": "6 4", "stroke-linecap": "round", "class": "series" }));
+    svg.appendChild(svgEl("circle", { cx: sx(x0), cy: sy(st.api), r: 5, fill: T().ink, stroke: T().halo, "stroke-width": 2 }));
+    svg.appendChild(svgEl("text", { x: sx(x0) + 8, y: sy(st.api) - 8, "font-size": 11, fill: T().ink, stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "Official now: " + st.api));
+    var cross = svgEl("line", { y1: padT, y2: H - padB, stroke: T().ink, opacity: 0 });
+    svg.appendChild(cross);
+    var overlay = svgEl("rect", { x: padL, y: padT, width: W2 - padL - padR, height: H - padT - padB, fill: "transparent" });
+    function hover(ev) {
+      var rect = svg.getBoundingClientRect(), px = (ev.clientX - rect.left) * (W2 / rect.width), best = 0;
+      times.forEach(function (t, k) { if (Math.abs(sx(t) - px) < Math.abs(sx(times[best]) - px)) best = k; });
+      cross.setAttribute("x1", sx(times[best])); cross.setAttribute("x2", sx(times[best])); cross.setAttribute("opacity", 0.3);
+      showTip("<b>Estimate " + fc.est[best] + "</b> (range " + fc.lo[best] + " to " + fc.hi[best] + ")<br>" + esc(L.fmtDateTime(new Date(times[best]))) + "<br>Not official IPU", ev.clientX, ev.clientY);
+    }
+    overlay.addEventListener("mousemove", hover);
+    overlay.addEventListener("touchstart", function (ev) { if (ev.touches[0]) hover(ev.touches[0]); }, { passive: true });
+    overlay.addEventListener("mouseleave", function () { cross.setAttribute("opacity", 0); hideTip(); });
+    svg.appendChild(overlay);
+    chart.appendChild(svg);
+  }
+
+  function renderOutlook() {
+    var box = $("outlook"), fc = S.forecast, n = now();
+    if (!fc || !fc.stations) { box.innerHTML = ""; return; }
+    var rows = stations().filter(function (s) { return L.forecastStatus(fc.stations[s.id], s, n).ok; })
+      .map(function (s) { return { s: s, f: fc.stations[s.id] }; })
+      .sort(function (a, b) { return b.f.peak24.est - a.f.peak24.est; });
+    var head = '<div class="fc-head"><h3>Next 24 hours</h3><span class="fc-tag">Estimate, not official</span></div>';
+    if (!rows.length) { box.innerHTML = head + '<p class="muted">No forecast estimate is available right now.</p>'; return; }
+    var likely = rows.filter(function (r) { return r.f.reach200_24h === "likely"; }).length;
+    var possible = rows.filter(function (r) { return r.f.reach200_24h === "possible"; }).length;
+    var lead = likely || possible
+      ? "The estimate suggests " + (likely ? likely + " station" + (likely > 1 ? "s are" : " is") + " likely" + (possible ? " and " : "") : "") +
+        (possible ? possible + " station" + (possible > 1 ? "s" : "") + " could possibly" : "") + " reach 200 in the next 24 hours."
+      : "The estimate does not expect any station to reach 200 in the next 24 hours.";
+    var label = { likely: "200 likely", possible: "200 possible", unlikely: "" };
+    box.innerHTML = head + '<p class="fc-lead">' + esc(lead) + '</p><div class="fc-list">' + rows.slice(0, 5).map(function (r) {
+      return '<button type="button" class="fc-row" data-station="' + esc(r.s.id) + '"><span class="nm">' + esc(r.s.name) + '</span><span class="pk">' + r.f.peak24.est + "</span>" +
+        '<span class="sub">' + esc(r.s.state) + ", estimated peak " + r.f.peak24.lo + " to " + r.f.peak24.hi + " around " + esc(whenText(r.f.peak24.time)) +
+        (label[r.f.reach200_24h] ? ". " + label[r.f.reach200_24h] : "") + "</span></button>";
+    }).join("") + '</div><p class="fc-note">Highest estimated peaks. These are model estimates, not DOE readings, and are not used for the school closure check.</p>';
   }
 
   // ================================================================ tooltip
@@ -520,7 +832,7 @@
     box.hidden = false;
     if (sel.type === "school-code") {
       $("sel-title").textContent = "Loading school…";
-      $("loc-info").innerHTML = ""; $("prediction").innerHTML = ""; $("trend").innerHTML = "";
+      $("loc-info").innerHTML = ""; $("prediction").innerHTML = ""; $("trend").innerHTML = ""; $("forecast").innerHTML = "";
       loadSchools().then(function () {
         var r = (S.schools || []).filter(function (x) { return x[0] === sel.code; })[0];
         if (r) select(schoolSel(r), { keepHash: true, noScroll: true });
@@ -584,6 +896,7 @@
     if (ref) renderTrend($("trend"), ref.station, "Last 24 hours at " + ref.station.name);
     else if (st) renderTrend($("trend"), st, "Last 24 hours at " + st.name);
     else $("trend").innerHTML = "";
+    renderForecast($("forecast"), ref ? ref.station : st);
 
     // map
     if (moveMap) {
@@ -700,6 +1013,7 @@
     $("prediction").innerHTML = p;
     if (sum.highest) renderTrend($("trend"), sum.highest, "Last 24 hours at " + sum.highest.name + ", the highest station in " + sel.state);
     else $("trend").innerHTML = "";
+    renderForecast($("forecast"), sum.highest);
 
     if (moveMap) {
       showPlace(null);
@@ -888,6 +1202,10 @@
       "<p>" + esc(r.who_decides) + "</p>" +
       "<p>Earlier rule: " + r.previous_rules.map(function (p) { return esc(L.fmtDayKey(p.from)) + " to " + esc(L.fmtDayKey(p.to)) + ": " + esc(p.summary); }).join(" ") + "</p>" +
       "<p>Sources:</p><ul>" + r.sources.map(function (s) { return '<li><a href="' + esc(s.url) + '" rel="noopener">' + esc(s.title) + "</a> (" + esc(s.date) + ")</li>"; }).join("") + "</ul></div></details>" +
+      "<details><summary>The forecast and the haze sources</summary><div>" +
+      "<p>The forecast is an estimate made by this site, kept apart from the official readings. It takes the CAMS air-quality model's PM2.5 forecast (Copernicus Atmosphere Monitoring Service, via Open-Meteo) at each station and scales it to that station's official IPU over the last 24 hours. " +
+      "It is shown only next to a current official reading, always labelled as an estimate, and never used for the school closure check, which uses DOE APIMS readings only.</p>" +
+      "<p>Fire hotspots are NASA FIRMS satellite detections (VIIRS) from the last 24 hours; detections older than 36 hours are never shown. Wind is the current 10 m wind from the Open-Meteo weather model. Together they show where fires are and which way the wind blows, not the actual path of the smoke.</p></div></details>" +
       "<details><summary>Limitations</summary><div><ul>" +
       "<li>Malaysia has about 68 DOE stations. Many schools are far from one, and a single station cannot show local differences.</li>" +
       "<li>The dashboard cannot see official announcements. A school may be closed or open for reasons this rule does not capture, such as a state directive.</li>" +
@@ -1015,7 +1333,8 @@
     setThemeButton();
     // redraw everything that carries theme colours
     renderLegend();
-    if (S.data) { renderOverview(); renderTable(); renderMarkers(); renderSelection(false); }
+    if (S.data) { renderOverview(); renderTable(); renderMarkers(); renderSelection(false); renderOutlook(); }
+    renderSourcesSection();
     renderDosm();
     if (M.map) {
       M.styleReady = false;
@@ -1033,13 +1352,23 @@
     renderTable();
     renderMarkers();
     renderSelection(false);
+    renderOutlook();
+    renderSourcesSection();
+    updateSourcesOnMap();
     renderAbout();
     S.firstPaint = false;
   }
 
+  function loadExtras() {
+    return Promise.all([
+      getJSON("data/forecast.json").catch(function () { return null; }),
+      getJSON("data/sources.json").catch(function () { return null; })
+    ]).then(function (r) { S.forecast = r[0]; S.sources = r[1]; });
+  }
+
   function refresh() {
-    getJSON("data/latest.json").then(function (d) {
-      var changed = !S.data || d.last_attempt !== S.data.last_attempt;
+    Promise.all([getJSON("data/latest.json"), loadExtras()]).then(function (res) {
+      var d = res[0], changed = !S.data || d.last_attempt !== S.data.last_attempt;
       S.data = d;
       if (changed) renderAll(); else renderStatus();
     }).catch(function () { renderStatus(); });
@@ -1084,6 +1413,17 @@
     $("sel-close").addEventListener("click", clearSelection);
     $("map-home").addEventListener("click", flyHome);
     $("theme-btn").addEventListener("click", function () { applyTheme(themeName() === "neon" ? "light" : "neon"); });
+    $("src-btn").addEventListener("click", function () { setSources(!M.sourcesOn, true); });
+    document.addEventListener("click", function (ev) {
+      if (ev.target.closest("#src-show")) {
+        setSources(!M.sourcesOn, true);
+        document.querySelector(".map-wrap").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
+      }
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) { W.running = false; cancelAnimationFrame(W.raf); }
+      else if (M.sourcesOn) startWind();
+    });
     ["f-state", "f-sort"].forEach(function (id) { $(id).addEventListener("change", renderTable); });
     $("f-text").addEventListener("input", renderTable);
     var rt = null, lastW = window.innerWidth;
@@ -1102,7 +1442,8 @@
     initMap();
     Promise.all([
       getJSON("data/latest.json").catch(function () { return null; }),
-      getJSON("data/rule.json").catch(function () { return null; })
+      getJSON("data/rule.json").catch(function () { return null; }),
+      loadExtras()
     ]).then(function (res) {
       S.data = res[0]; S.rule = res[1];
       S.sel = readHash();

@@ -8,6 +8,10 @@ Writes docs/data/sources.json with:
           if nothing recent is available, the file says so.
   wind  - current 10 m wind on a 2-degree grid over the region, from the
           Open-Meteo forecast API (a weather model, not a measurement).
+And docs/data/wind_history.json:
+  hourly low-level wind (925 hPa, about 800 m up, where smoke travels; 10 m
+  where 925 hPa is missing) for the past 3 days on a 1.5-degree grid. The
+  page uses it to trace where the air arriving at a place came from.
 Fires are read every run; wind at most every 3 hours. Python standard library only.
 """
 import csv
@@ -27,6 +31,7 @@ MYT = timezone(timedelta(hours=8))
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("IPU_DATA_DIR", ROOT / "docs" / "data"))
 OUT = DATA_DIR / "sources.json"
+HISTORY = DATA_DIR / "wind_history.json"
 
 FIRMS_BASE = os.environ.get("FIRMS_BASE", "https://firms.modaps.eosdis.nasa.gov/data/active_fire")
 FIRMS_FILES = [
@@ -38,6 +43,8 @@ WIND_URL = os.environ.get("OPEN_METEO_WX_URL", "https://api.open-meteo.com/v1/fo
 
 BBOX = {"west": 94.0, "east": 121.0, "south": -7.0, "north": 9.5}
 GRID = {"lon0": 94.0, "lat0": -6.0, "dlon": 2.0, "dlat": 2.0, "nx": 14, "ny": 9}   # 94..120 E, -6..10 N
+HGRID = {"lon0": 93.0, "lat0": -8.0, "dlon": 1.5, "dlat": 1.5, "nx": 20, "ny": 13}  # 93..121.5 E, -8..10 N
+HISTORY_DAYS = 3
 FIRE_MAX_AGE = timedelta(hours=36)
 WIND_REFRESH = timedelta(hours=3)
 CHUNK = 50
@@ -187,6 +194,85 @@ def collect_wind(now):
     }
 
 
+def collect_history(now):
+    """Hourly u/v (m/s x 10, as integers) for every grid point, oldest hour first."""
+    g = HGRID
+    pts = [(g["lat0"] + j * g["dlat"], g["lon0"] + i * g["dlon"]) for j in range(g["ny"]) for i in range(g["nx"])]
+    times, cols, level_used = None, [], {"925hPa": 0, "10m": 0, "missing": 0}
+    for i in range(0, len(pts), CHUNK):
+        part = pts[i:i + CHUNK]
+        rows = as_list(json.loads(fetch(WIND_URL, {
+            "latitude": ",".join(f"{p[0]:.2f}" for p in part),
+            "longitude": ",".join(f"{p[1]:.2f}" for p in part),
+            "hourly": "wind_speed_925hPa,wind_direction_925hPa,wind_speed_10m,wind_direction_10m",
+            "wind_speed_unit": "ms", "timezone": "GMT",
+            "past_days": HISTORY_DAYS, "forecast_days": 1,
+        })))
+        if len(rows) != len(part):
+            raise RuntimeError(f"Open-Meteo returned {len(rows)} locations for {len(part)}")
+        for row in rows:
+            h = row.get("hourly") or {}
+            t = h.get("time") or []
+            if times is None:
+                times = t
+            elif t != times:
+                raise RuntimeError("hourly times differ between locations")
+            s9, d9 = h.get("wind_speed_925hPa") or [], h.get("wind_direction_925hPa") or []
+            s0, d0 = h.get("wind_speed_10m") or [], h.get("wind_direction_10m") or []
+            u, v = [], []
+            for k in range(len(t)):
+                spd = s9[k] if k < len(s9) else None
+                deg = d9[k] if k < len(d9) else None
+                if spd is None or deg is None:
+                    spd = s0[k] if k < len(s0) else None
+                    deg = d0[k] if k < len(d0) else None
+                    level_used["10m" if spd is not None and deg is not None else "missing"] += 1
+                else:
+                    level_used["925hPa"] += 1
+                if spd is None or deg is None:
+                    u.append(None); v.append(None); continue
+                rad = math.radians(float(deg))
+                u.append(round(-float(spd) * math.sin(rad) * 10))
+                v.append(round(-float(spd) * math.cos(rad) * 10))
+            cols.append((u, v))
+    if not times:
+        raise RuntimeError("no hourly times in the wind answer")
+    # keep hours up to now (the trace starts at the newest hour that is not in the future)
+    stamps = [int(datetime.fromisoformat(t).replace(tzinfo=timezone.utc).timestamp() // 60) for t in times]
+    now_min = int(now.timestamp() // 60)
+    keep = [k for k, m in enumerate(stamps) if m <= now_min]
+    return {
+        "status": "ok",
+        "source": "Open-Meteo forecast API, hourly wind at 925 hPa (about 800 m up), 10 m where 925 hPa is missing. Weather model, not a measurement.",
+        "url": "https://open-meteo.com/",
+        "fetched_at": now.astimezone(MYT).isoformat(),
+        "grid": HGRID, "units": "m/s x 10",
+        "levels_used": level_used,
+        "times": [stamps[k] for k in keep],          # unix minutes, UTC
+        "u": [[cols[p][0][k] for p in range(len(cols))] for k in keep],   # [hour][point]
+        "v": [[cols[p][1][k] for p in range(len(cols))] for k in keep],
+    }
+
+
+def update_history(now):
+    try:
+        old = json.loads(HISTORY.read_text(encoding="utf-8"))
+        if now - datetime.fromisoformat(old["fetched_at"]) < WIND_REFRESH:
+            log(f"Wind history is recent ({old['fetched_at']}); not downloading.")
+            return old.get("status")
+    except (OSError, ValueError, KeyError, TypeError):
+        old = None
+    log("Reading 3-day wind history (Open-Meteo)...")
+    try:
+        hist = collect_history(now)
+    except (RuntimeError, ValueError) as err:
+        log(f"  FAILED: {err}")
+        return "failed"
+    HISTORY.write_text(json.dumps(hist, separators=(",", ":")), encoding="utf-8")
+    log(f"  {len(hist['times'])} hours, levels used: {hist['levels_used']}")
+    return "ok"
+
+
 def main():
     now = now_utc()
     try:
@@ -225,8 +311,10 @@ def main():
     else:
         log(f"Wind data is recent ({wind['fetched_at']}); not downloading.")
 
-    out = {"generated_at": now.astimezone(MYT).isoformat(), "bbox": BBOX, "fires": fires, "wind": wind}
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    history_status = update_history(now)
+    out = {"generated_at": now.astimezone(MYT).isoformat(), "bbox": BBOX, "fires": fires, "wind": wind,
+           "wind_history": {"status": history_status, "file": "wind_history.json"}}
     OUT.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
     log(f"Fires: {fires['status']}, {fires.get('count', 0)} hotspots. Wind: {wind.get('status') if wind else 'none'}.")
     return 0

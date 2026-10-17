@@ -79,6 +79,22 @@ class Handler(BaseHTTPRequestHandler):
                                 "pm2_5": [pm_at(t) if i < len(ts) - 6 else None for i, t in enumerate(ts)]}}
                     for a, b in zip(lats, lons)]
             return self.send(locs if len(locs) > 1 else locs[0])
+        if u.path.endswith("/forecast") and "hourly" in q:
+            lats, lons = q["latitude"][0].split(","), q["longitude"][0].split(",")
+            start = (NOW - timedelta(hours=8)).replace(minute=0) - timedelta(days=3)
+            start = start.replace(hour=0)
+            ts = [start + timedelta(hours=i) for i in range(5 * 24)]
+            locs = []
+            for a, b in zip(lats, lons):
+                n = len(ts)
+                s925 = [5.0] * n
+                if float(b) > 120:                 # far east column: 925 hPa missing, 10 m used
+                    s925 = [None] * n
+                locs.append({"latitude": float(a), "longitude": float(b), "hourly": {
+                    "time": [t.strftime("%Y-%m-%dT%H:%M") for t in ts],
+                    "wind_speed_925hPa": s925, "wind_direction_925hPa": [225] * n,
+                    "wind_speed_10m": [2.0] * n, "wind_direction_10m": [180] * n}})
+            return self.send(locs if len(locs) > 1 else locs[0])
         if u.path.endswith("/forecast"):
             Fake.wind_calls += 1
             lats, lons = q["latitude"][0].split(","), q["longitude"][0].split(",")
@@ -216,6 +232,19 @@ class SourcesTests(Base):
         calls = Fake.wind_calls
         self.run_script("fetch_sources.py", now=NOW + timedelta(hours=1))
         self.assertEqual(Fake.wind_calls, calls)              # not downloaded again within 3 h
+
+    def test_wind_history_for_air_paths(self):
+        self.run_script("fetch_sources.py")
+        h = json.loads((self.dir / "data" / "wind_history.json").read_text())
+        g = h["grid"]
+        self.assertEqual(len(h["u"][0]), g["nx"] * g["ny"])
+        now_min = int((NOW - timedelta(hours=8)).replace(tzinfo=timezone.utc).timestamp() // 60)
+        self.assertTrue(all(t <= now_min for t in h["times"]))           # never future hours
+        self.assertGreaterEqual(len(h["times"]), 72)
+        self.assertEqual(h["u"][0][0], 35)                                 # 5 m/s from the SW, x10
+        self.assertEqual(h["v"][-1][g["nx"] - 1], 20)                      # far east: 10 m wind from the S
+        self.assertGreater(h["levels_used"]["10m"], 0)
+        self.assertEqual(self.load()["wind_history"]["status"], "ok")
 
     def test_fires_unreachable_keeps_only_recent_previous(self):
         self.run_script("fetch_sources.py")

@@ -453,8 +453,150 @@
     return COMPASS[Math.round(deg / 45) % 8];
   }
 
+  // ------------------------------------------------------------ air path (back-trajectory), regions, coverage zones
+
+  /* Wind (u, v in m/s) at a place and time from the hourly wind history:
+     bilinear in space, linear in time. hist.u/v are [hour][point] in m/s x 10. */
+  function windHistAt(hist, lon, lat, tMin) {
+    var g = hist.grid, times = hist.times, n = times.length;
+    if (n < 2 || tMin < times[0] || tMin > times[n - 1]) return null;
+    var fx = (lon - g.lon0) / g.dlon, fy = (lat - g.lat0) / g.dlat;
+    if (fx < 0 || fy < 0 || fx > g.nx - 1 || fy > g.ny - 1) return null;
+    var lo = 0, hi = n - 1;
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (times[mid] <= tMin) lo = mid; else hi = mid; }
+    var ft = (tMin - times[lo]) / (times[hi] - times[lo]);
+    var i = Math.floor(fx), j = Math.floor(fy), i1 = Math.min(i + 1, g.nx - 1), j1 = Math.min(j + 1, g.ny - 1), tx = fx - i, ty = fy - j;
+    function bl(arr) {
+      var a = arr[j * g.nx + i], b = arr[j * g.nx + i1], c = arr[j1 * g.nx + i], d = arr[j1 * g.nx + i1];
+      if (a === null || b === null || c === null || d === null) return null;
+      return ((a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty) / 10;
+    }
+    var u0 = bl(hist.u[lo]), v0 = bl(hist.v[lo]), u1 = bl(hist.u[hi]), v1 = bl(hist.v[hi]);
+    if (u0 === null || v0 === null || u1 === null || v1 === null) return null;
+    return { u: u0 + (u1 - u0) * ft, v: v0 + (v1 - v0) * ft };
+  }
+
+  /* Where the air now at (lon, lat) came from: step backwards in time through the wind
+     (midpoint method, 15-minute steps). Returns hourly points [lon, lat, unixMinutes]
+     from now back up to `hours`, and a denser path for distance checks. */
+  function backTrajectory(hist, lon, lat, hours, stepMin) {
+    hours = hours || 72; stepMin = stepMin || 15;
+    var t = hist.times[hist.times.length - 1], M = 111320;
+    var hourly = [[lon, lat, t]], dense = [[lon, lat, t]];
+    var steps = Math.round(hours * 60 / stepMin), dt = stepMin * 60;
+    for (var s = 1; s <= steps; s++) {
+      var w1 = windHistAt(hist, lon, lat, t);
+      if (!w1) break;
+      var c1 = Math.cos(lat * Math.PI / 180);
+      var mlon = lon - w1.u * dt / 2 / (M * c1), mlat = lat - w1.v * dt / 2 / M;
+      var w2 = windHistAt(hist, mlon, mlat, t - stepMin / 2);
+      if (!w2) break;
+      var c2 = Math.cos(mlat * Math.PI / 180);
+      lon -= w2.u * dt / (M * c2);
+      lat -= w2.v * dt / M;
+      t -= stepMin;
+      dense.push([lon, lat, t]);
+      if ((s * stepMin) % 60 === 0) hourly.push([lon, lat, t]);
+    }
+    var km = 0;
+    for (var k = 1; k < dense.length; k++) km += haversineKm(dense[k - 1][1], dense[k - 1][0], dense[k][1], dense[k][0]);
+    return { hourly: hourly, dense: dense, km: km, hoursCovered: (dense.length - 1) * stepMin / 60 };
+  }
+
+  // Rough outlines, only for naming where a path or a fire is ("over Sumatra").
+  var REGIONS = [
+    { name: "Peninsular Malaysia", poly: [[100.1, 6.5], [101.0, 6.9], [102.4, 6.3], [103.5, 4.6], [104.4, 2.6], [104.4, 1.3], [103.4, 1.2], [101.4, 2.5], [100.4, 4.0], [100.1, 6.5]] },
+    { name: "Sumatra", poly: [[95.2, 5.8], [97.6, 5.3], [99.6, 3.4], [101.4, 2.2], [103.6, 0.2], [104.7, -1.6], [106.3, -3.1], [105.9, -5.9], [104.4, -5.9], [102.2, -4.1], [100.3, -1.1], [98.6, 1.5], [96.9, 3.0], [95.2, 5.8]] },
+    { name: "Borneo", poly: [[108.6, 1.1], [109.6, 2.1], [111.0, 2.0], [113.4, 3.9], [115.0, 5.1], [116.4, 7.1], [119.4, 5.4], [118.1, 4.3], [117.9, 1.0], [116.6, -2.0], [116.1, -4.1], [113.0, -3.6], [110.1, -3.0], [109.0, -1.0], [108.6, 1.1]] },
+    { name: "Java", poly: [[105.2, -6.0], [106.5, -5.8], [108.5, -6.3], [111.0, -6.3], [112.7, -6.8], [114.6, -7.7], [114.4, -8.7], [111.0, -8.3], [108.0, -7.8], [105.4, -6.9], [105.2, -6.0]] }
+  ];
+  function inPoly(x, y, poly) {
+    var inside = false;
+    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  function regionOf(lon, lat) {
+    for (var i = 0; i < REGIONS.length; i++) if (inPoly(lon, lat, REGIONS[i].poly)) return REGIONS[i].name;
+    if (lon >= 98 && lon <= 104 && lat >= -1 && lat <= 6.5) return "the Strait of Malacca";
+    if (lon >= 104 && lon <= 119 && lat >= -1 && lat <= 10) return "the South China Sea";
+    if (lon >= 105 && lon <= 118 && lat >= -7 && lat < -1) return "the Java Sea";
+    return "the open sea";
+  }
+
+  /* Summary of a path: the places it spent most time over, ignoring the first hours
+     (which are around the selected place itself). */
+  function pathRegions(hourly, skipHours) {
+    var counts = {}, order = [];
+    hourly.slice(skipHours || 3).forEach(function (p) {
+      var r = regionOf(p[0], p[1]);
+      if (!counts[r]) { counts[r] = 0; order.push(r); }
+      counts[r] += 1;
+    });
+    return order.map(function (r) { return { name: r, hours: counts[r] }; }).sort(function (a, b) { return b.hours - a.hours; });
+  }
+
+  /* Fires within `km` of the path (after the first `skipHours`, and not at the place itself), grouped by region. */
+  function firesNearPath(dense, fires, km, skipHours) {
+    km = km || 25; skipHours = skipHours || 2;
+    var startT = dense.length ? dense[0][2] : 0, pts = dense.filter(function (p) { return startT - p[2] >= skipHours * 60; });
+    var hits = [], byRegion = {};
+    if (!pts.length) return { count: 0, indexes: [], byRegion: [] };
+    var w = 180, e = -180, s = 90, n = -90;
+    pts.forEach(function (p) { w = Math.min(w, p[0]); e = Math.max(e, p[0]); s = Math.min(s, p[1]); n = Math.max(n, p[1]); });
+    var pad = km / 100;
+    var home = dense[0];
+    (fires || []).forEach(function (f, idx) {
+      if (f[0] < w - pad || f[0] > e + pad || f[1] < s - pad || f[1] > n + pad) return;
+      if (haversineKm(home[1], home[0], f[1], f[0]) <= km * 1.2) return;   // at the place itself, not along the route
+      for (var k = 0; k < pts.length; k++) {
+        if (Math.abs(pts[k][1] - f[1]) > pad || Math.abs(pts[k][0] - f[0]) > pad * 1.1) continue;
+        if (haversineKm(pts[k][1], pts[k][0], f[1], f[0]) <= km) {
+          hits.push(idx);
+          var r = regionOf(f[0], f[1]);
+          byRegion[r] = (byRegion[r] || 0) + 1;
+          return;
+        }
+      }
+    });
+    return { count: hits.length, indexes: hits,
+             byRegion: Object.keys(byRegion).map(function (r) { return { name: r, count: byRegion[r] }; }).sort(function (a, b) { return b.count - a.count; }) };
+  }
+
+  /* Coverage zones: the area closest to each station (Voronoi cells), computed in a
+     locally flat projection. sites: [{id, lon, lat}]; bbox: [[w, s], [e, n]]. */
+  function coverageZones(sites, bbox) {
+    var k = Math.cos(4 * Math.PI / 180);
+    var P = sites.map(function (s) { return { id: s.id, x: s.lon * k, y: s.lat }; });
+    var box = [[bbox[0][0] * k, bbox[0][1]], [bbox[1][0] * k, bbox[0][1]], [bbox[1][0] * k, bbox[1][1]], [bbox[0][0] * k, bbox[1][1]]];
+    function clip(poly, p, q) {
+      // keep the side of the bisector of p-q that is closer to p
+      var mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2, nx = q.x - p.x, ny = q.y - p.y, out = [];
+      function side(pt) { return (pt[0] - mx) * nx + (pt[1] - my) * ny; }
+      for (var i = 0; i < poly.length; i++) {
+        var a = poly[i], b = poly[(i + 1) % poly.length], sa = side(a), sb = side(b);
+        if (sa <= 0) out.push(a);
+        if ((sa <= 0) !== (sb <= 0)) {
+          var t = sa / (sa - sb);
+          out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+        }
+      }
+      return out;
+    }
+    var zones = {};
+    P.forEach(function (p) {
+      var poly = box.slice();
+      for (var i = 0; i < P.length && poly.length; i++) if (P[i] !== p && (P[i].x !== p.x || P[i].y !== p.y)) poly = clip(poly, p, P[i]);
+      if (poly.length >= 3) zones[p.id] = poly.map(function (pt) { return [pt[0] / k, pt[1]]; }).concat([[poly[0][0] / k, poly[0][1]]]);
+    });
+    return zones;
+  }
+
   var api = {
-    TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, STALE_HOURS: STALE_HOURS, CATEGORIES: CATEGORIES, categoryFor: categoryFor, pollutantName: pollutantName,
+    TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, windHistAt: windHistAt, backTrajectory: backTrajectory,
+    regionOf: regionOf, pathRegions: pathRegions, firesNearPath: firesNearPath, coverageZones: coverageZones, inPoly: inPoly, STALE_HOURS: STALE_HOURS, CATEGORIES: CATEGORIES, categoryFor: categoryFor, pollutantName: pollutantName,
     parseTime: parseTime, mytDateKey: mytDateKey, fmtTime: fmtTime, fmtDateTime: fmtDateTime, fmtDayKey: fmtDayKey,
     addDaysKey: addDaysKey, weekdayOfKey: weekdayOfKey, ago: ago, freshness: freshness, stationCurrent: stationCurrent,
     haversineKm: haversineKm, byDistance: byDistance, matchStations: matchStations, noSchoolReason: noSchoolReason,

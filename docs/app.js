@@ -15,7 +15,8 @@
       grid: "#e9efee", axis: "#64767d", ink: "#172a35", halo: "#ffffff", outdoor: "#8d9da2", closure: "#c4442f",
       series: "#2a78d6", seriesB: "#eb6834", area: 0.08,
       fallback: { sea: "#dfe8ec", land: "#f6f8f8", coast: "#a9b8bd" }, meta: "#ffffff",
-      forecast: "#b5179e", fireCore: "#d9480f", fireGlow: "#ff922b", wind: "rgba(23, 42, 53, 0.55)"
+      forecast: "#b5179e", fireCore: "#d9480f", fireGlow: "#ff922b", wind: "rgba(23, 42, 53, 0.55)",
+      trace: "#0b7285", traceCase: "#ffffff", fireHit: "#9c1d00", zoneLine: "#172a35"
     },
     neon: {
       style: "https://tiles.openfreemap.org/styles/dark",
@@ -25,7 +26,8 @@
       grid: "#162043", axis: "#8394ba", ink: "#eaf3ff", halo: "#070b18", outdoor: "#5b6fa8", closure: "#ff3d81",
       series: "#47f3ff", seriesB: "#ff5ce1", area: 0.14,
       fallback: { sea: "#04060d", land: "#0f1730", coast: "#2b3d70" }, meta: "#070b18",
-      forecast: "#c084fc", fireCore: "#ffd08a", fireGlow: "#ff3d81", wind: "rgba(71, 243, 255, 0.8)"
+      forecast: "#c084fc", fireCore: "#ffd08a", fireGlow: "#ff3d81", wind: "rgba(71, 243, 255, 0.8)",
+      trace: "#f4f7ff", traceCase: "#47f3ff", fireHit: "#ffffff", zoneLine: "#47f3ff"
     }
   };
   var THEME_KEY = "ipu-theme";
@@ -34,10 +36,11 @@
   var FIRE_MAX_AGE_MIN = 36 * 60;
   var REDUCE = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var S = { data: null, rule: null, dosm: null, forecast: null, sources: null, schools: null, schoolsMeta: null, schoolsLoading: null,
+  var S = { data: null, rule: null, dosm: null, forecast: null, sources: null, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
             sel: null, lastPlaceQuery: 0, firstPaint: true };
   var M = { map: null, styleReady: false, introDone: false, markers: {}, pin: null, km: null,
-            fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5, sourcesOn: false };
+            fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5, sourcesOn: false,
+            dayMarkers: [], zones: null };
   var W = { canvas: null, ctx: null, parts: [], raf: 0, running: false, dpr: 1 };
 
   function $(id) { return document.getElementById(id); }
@@ -242,6 +245,32 @@
         "circle-color": T().fireCore, "circle-opacity": 0.95,
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 1.6, 6, 2.6, 10, 4.5] } });
     }
+    var empty = { type: "FeatureCollection", features: [] };
+    if (!map.getSource("zones")) map.addSource("zones", { type: "geojson", data: M.zones || empty });
+    if (!map.getLayer("zones-fill")) {
+      map.addLayer({ id: "zones-fill", type: "fill", source: "zones", filter: ["==", ["get", "mine"], true],
+        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.16 } }, "haze");
+    }
+    if (!map.getLayer("zones-line")) {
+      map.addLayer({ id: "zones-line", type: "line", source: "zones",
+        paint: { "line-color": T().zoneLine, "line-width": ["case", ["get", "mine"], 2.4, 1], "line-opacity": ["case", ["get", "mine"], 0.9, 0.35],
+                 "line-dasharray": [2, 2] } }, "haze");
+    }
+    if (!map.getSource("trace")) map.addSource("trace", { type: "geojson", data: traceGeo() });
+    if (!map.getLayer("trace-case")) {
+      map.addLayer({ id: "trace-case", type: "line", source: "trace", layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": T().traceCase, "line-width": 7, "line-opacity": themeName() === "neon" ? 0.35 : 0.9, "line-blur": themeName() === "neon" ? 4 : 0 } });
+    }
+    if (!map.getLayer("trace")) {
+      map.addLayer({ id: "trace", type: "line", source: "trace", layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": T().trace, "line-width": 3 } });
+    }
+    if (!map.getSource("fire-hits")) map.addSource("fire-hits", { type: "geojson", data: fireHitsGeo() });
+    if (!map.getLayer("fire-hits")) {
+      map.addLayer({ id: "fire-hits", type: "circle", source: "fire-hits", paint: {
+        "circle-color": T().fireCore, "circle-stroke-color": T().fireHit, "circle-stroke-width": 1.2,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 2.6, 6, 4, 10, 6] } });
+    }
     var cam = map.cameraForBounds(MY_BOUNDS, { padding: pad() });
     if (cam) M.homeZoom = cam.zoom;
     renderMarkers();
@@ -368,7 +397,8 @@
     }).join("");
     if (M.sourcesOn) {
       html += '<span><i style="' + swatch(T().fireCore) + '"></i>Fire hotspot, last 24 h</span>' +
-              '<span><i class="wind-key" style="background:' + T().wind + '"></i>Surface wind (model)</span>';
+              (M.traceShown ? '<span><i class="wind-key" style="background:' + T().trace + ';height:3px"></i>Air path to the selected place (model)</span>'
+                            : '<span><i class="wind-key" style="background:' + T().wind + '"></i>Surface wind (model)</span>');
     }
     $("map-legend").innerHTML = html;
   }
@@ -497,15 +527,165 @@
     if (M.map && M.styleReady) {
       ["fires-glow", "fires"].forEach(function (id) { if (M.map.getLayer(id)) M.map.setLayoutProperty(id, "visibility", on ? "visible" : "none"); });
     }
-    if (on) startWind(); else stopWind();
     renderLegend();
     renderSourcesSection();
-    if (on && fly) flyTo({ bounds: isMobile() ? [[96.5, -4.5], [118.5, 7.5]] : REGION_BOUNDS, maxZoom: 6, padding: isMobile() ? { top: 56, bottom: 64, left: 6, right: 6 } : null });
+    var traced = updateTraceDisplay();
+    if (on && fly) {
+      if (traced) flyToTrace();
+      else flyTo({ bounds: isMobile() ? [[96.5, -4.5], [118.5, 7.5]] : REGION_BOUNDS, maxZoom: 6, padding: isMobile() ? { top: 56, bottom: 64, left: 6, right: 6 } : null });
+    }
   }
 
   function updateSourcesOnMap() {
     if (M.map && M.styleReady && M.map.getSource("fires")) M.map.getSource("fires").setData(firesGeo());
-    if (M.sourcesOn) startWind();
+    updateTraceDisplay();
+  }
+
+  // ================================================================ air path (where the air came from)
+
+  function selPoint(sel) {
+    if (!sel || sel.type === "state" || sel.type === "school-code") return null;
+    if (sel.type === "station") {
+      var st = stationById(sel.id);
+      return st && typeof st.lat === "number" ? { lon: st.lon, lat: st.lat } : null;
+    }
+    return typeof sel.lat === "number" ? { lon: sel.lon, lat: sel.lat } : null;
+  }
+
+  function loadWindHist() {
+    if (S.windHist) return Promise.resolve(S.windHist);
+    if (S.windHistLoading) return S.windHistLoading;
+    S.windHistLoading = getJSON("data/wind_history.json").then(function (h) {
+      var age = (Date.now() / 60000) - h.times[h.times.length - 1];
+      S.windHist = h && h.times && h.times.length > 2 && age < 12 * 60 ? h : false;   // older history is not used
+      return S.windHist;
+    }).catch(function () { S.windHist = false; return false; })
+      .then(function (h) { S.windHistLoading = null; return h; });
+    return S.windHistLoading;
+  }
+
+  /* Compute (and cache) the air path for the current selection. */
+  function currentTrace() {
+    var pt = selPoint(S.sel);
+    if (!pt || !S.windHist) return null;
+    var k = pt.lon.toFixed(4) + "," + pt.lat.toFixed(4) + "," + S.windHist.times[S.windHist.times.length - 1];
+    if (S.trace && S.trace.key === k) return S.trace;
+    var tr = L.backTrajectory(S.windHist, pt.lon, pt.lat, 72, 15);
+    if (tr.hourly.length < 7) { S.trace = { key: k, failed: true }; return S.trace; }
+    var fires = freshFires();
+    S.trace = { key: k, tr: tr, regions: L.pathRegions(tr.hourly, 3), near: L.firesNearPath(tr.dense, fires, 25, 2), fires: fires };
+    return S.trace;
+  }
+
+  function traceGeo() {
+    var t = M.sourcesOn && S.trace && S.trace.tr && selPoint(S.sel) ? S.trace : null;
+    return { type: "FeatureCollection", features: t ? [{ type: "Feature", properties: {},
+      geometry: { type: "LineString", coordinates: t.tr.dense.map(function (p) { return [p[0], p[1]]; }) } }] : [] };
+  }
+
+  function fireHitsGeo() {
+    var t = M.sourcesOn && S.trace && S.trace.near && selPoint(S.sel) ? S.trace : null;
+    return { type: "FeatureCollection", features: t ? t.near.indexes.map(function (i) {
+      var f = t.fires[i];
+      return { type: "Feature", geometry: { type: "Point", coordinates: [f[0], f[1]] }, properties: {} };
+    }) : [] };
+  }
+
+  /* Haze-sources map: the selected place's air path if there is one, otherwise the general wind flow.
+     Returns true when a path is shown. */
+  function updateTraceDisplay() {
+    M.dayMarkers.forEach(function (m) { m.remove(); });
+    M.dayMarkers = [];
+    var t = M.sourcesOn && selPoint(S.sel) ? currentTrace() : null;
+    var show = !!(t && t.tr);
+    if (M.map && M.styleReady) {
+      if (M.map.getSource("trace")) M.map.getSource("trace").setData(traceGeo());
+      if (M.map.getSource("fire-hits")) M.map.getSource("fire-hits").setData(fireHitsGeo());
+    }
+    if (show) {
+      stopWind();
+      [24, 48, 72].forEach(function (h) {
+        var p = t.tr.hourly[h];
+        if (!p || !M.map) return;
+        var el = document.createElement("div");
+        el.className = "day-wrap";
+        el.innerHTML = '<div class="day"></div>';
+        el.querySelector(".day").textContent = h / 24 + (h === 24 ? " day ago" : " days ago");
+        M.dayMarkers.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([p[0], p[1]]).addTo(M.map));
+      });
+    } else if (M.sourcesOn) {
+      startWind();
+    } else {
+      stopWind();
+    }
+    if (M.traceShown !== show) { M.traceShown = show; renderLegend(); }
+    return show;
+  }
+
+  function flyToTrace() {
+    var t = S.trace, pt = selPoint(S.sel);
+    if (!t || !t.tr || !pt) return;
+    var pts = t.tr.hourly.map(function (p) { return [p[0], p[1]]; }).concat([[pt.lon, pt.lat]]);
+    flyTo({ bounds: boundsOf(pts), maxZoom: 8, padding: isMobile() ? { top: 70, bottom: 130, left: 40, right: 40 } : { top: 90, bottom: 120, left: 110, right: 110 } });
+  }
+
+  function listNames(arr) {
+    if (arr.length <= 1) return arr.join("");
+    return arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1];
+  }
+
+  function renderAirPath() {
+    var box = $("airpath"), pt = selPoint(S.sel);
+    if (!pt) { box.innerHTML = ""; box.className = ""; return; }
+    box.className = "airpath";
+    var head = '<div class="fc-head"><h3>Where this air came from</h3><span class="fc-tag">Model estimate</span></div>';
+    if (S.windHist === null) {
+      box.innerHTML = head + '<p class="muted">Loading wind history…</p>';
+      loadWindHist().then(function () { renderAirPath(); updateTraceDisplay(); });
+      return;
+    }
+    if (!S.windHist) { box.innerHTML = head + '<p class="muted">The wind history needed to trace the air is not available right now. It is refreshed with the hourly update.</p>'; return; }
+    var t = currentTrace();
+    if (!t || !t.tr) { box.innerHTML = head + '<p class="muted">The air path could not be traced here: this place is at the edge of the wind data.</p>'; return; }
+    var days = Math.round(t.tr.hoursCovered / 24 * 10) / 10;
+    var over = t.regions.filter(function (r) { return r.hours >= 6; }).slice(0, 3).map(function (r) { return r.name; });
+    var start = t.tr.hourly[t.tr.hourly.length - 1], startRegion = L.regionOf(start[0], start[1]);
+    var html = head + '<p class="lead">Over the last ' + (days >= 2.9 ? "3 days" : days + " days") + ", the air now arriving here travelled about <b>" +
+      Math.round(t.tr.km / 10) * 10 + " km</b>" + (over.length ? ", mostly over " + esc(listNames(over)) : "") + ". " +
+      (days >= 2.9 ? "Three days ago it was over " : "At the start of the trace it was over ") + esc(startRegion) + ".</p>";
+    if (t.near.count) {
+      html += '<p class="lead">Along the way it passed within 25 km of <b>' + t.near.count.toLocaleString("en-MY") + " fire hotspot" + (t.near.count > 1 ? "s" : "") +
+        "</b> detected by satellites in the last 24 hours" + (t.near.byRegion.length ? ", mostly in " + esc(t.near.byRegion[0].name) : "") + ".</p>";
+    } else if (t.fires.length) {
+      html += '<p class="lead">It did not pass near any of the fire hotspots detected by satellites in the last 24 hours.</p>';
+    } else {
+      html += '<p class="lead">No recent satellite fire detections are available to compare with the path.</p>';
+    }
+    html += '<button type="button" class="trace-btn" id="trace-show">' + (M.sourcesOn ? "Show the path on the map" : "Show the path and fires on the map") + "</button>" +
+      '<p class="fc-note">Traced backwards through modelled winds about 800 m up, where smoke travels (Open-Meteo). The fire detections are from the last 24 hours while the air passed those areas up to 3 days ago, so this shows fires along the route, not proof that a particular fire caused today\'s haze. Not official data.</p>';
+    box.innerHTML = html;
+  }
+
+  // ================================================================ coverage zones ("which station covers me")
+
+  function updateZones() {
+    var sel = S.sel, n = now(), data = { type: "FeatureCollection", features: [] }, info = null;
+    if (sel && sel.source === "device" && typeof sel.lat === "number") {
+      var cur = stations().filter(function (s) { return typeof s.lat === "number" && L.stationCurrent(s, n); });
+      if (cur.length) {
+        var zones = L.coverageZones(cur.map(function (s) { return { id: s.id, lon: s.lon, lat: s.lat }; }), [[98.5, 0.2], [120.5, 8.2]]);
+        cur.forEach(function (s) {
+          if (!zones[s.id]) return;
+          var mine = L.inPoly(sel.lon, sel.lat, zones[s.id]);
+          if (mine) info = { station: s, ring: zones[s.id] };
+          data.features.push({ type: "Feature", geometry: { type: "Polygon", coordinates: [zones[s.id]] },
+                               properties: { id: s.id, mine: mine, color: cat(s.api).color } });
+        });
+      }
+    }
+    M.zones = data;
+    if (M.map && M.styleReady && M.map.getSource("zones")) M.map.getSource("zones").setData(data);
+    return info;
   }
 
   function renderSourcesSection() {
@@ -790,7 +970,9 @@
   function clearSelection() {
     S.sel = null; setHash(null);
     renderSelection(false);
-    showPlace(null); markRef(null); flyHome();
+    showPlace(null); markRef(null); updateZones(); updateTraceDisplay();
+    if (M.sourcesOn) flyTo({ bounds: isMobile() ? [[96.5, -4.5], [118.5, 7.5]] : REGION_BOUNDS, maxZoom: 6, padding: isMobile() ? { top: 56, bottom: 64, left: 6, right: 6 } : null });
+    else flyHome();
   }
 
   function setHash(sel) {
@@ -834,7 +1016,7 @@
     box.hidden = false;
     if (sel.type === "school-code") {
       $("sel-title").textContent = "Loading school…";
-      $("loc-info").innerHTML = ""; $("prediction").innerHTML = ""; $("trend").innerHTML = ""; $("forecast").innerHTML = "";
+      $("loc-info").innerHTML = ""; $("prediction").innerHTML = ""; $("trend").innerHTML = ""; $("forecast").innerHTML = ""; $("airpath").innerHTML = "";
       loadSchools().then(function () {
         var r = (S.schools || []).filter(function (x) { return x[0] === sel.code; })[0];
         if (r) select(schoolSel(r), { keepHash: true, noScroll: true });
@@ -899,18 +1081,29 @@
     else if (st) renderTrend($("trend"), st, "Last 24 hours at " + st.name);
     else $("trend").innerHTML = "";
     renderForecast($("forecast"), ref ? ref.station : st);
+    renderAirPath();
+    var zone = updateZones();
+    if (zone) {
+      $("loc-info").insertAdjacentHTML("beforeend", '<p class="zone-note">You are inside the area covered by <b>' + esc(zone.station.name) +
+        "</b> station: everywhere in the highlighted zone on the map is closer to " + esc(zone.station.name) +
+        " than to any other station with a current reading. The dashed lines between zones are where two stations are equally far away.</p>");
+    }
 
     // map
     if (moveMap) {
       var point = [lon, lat];
       markRef(ref ? ref.station.id : (st ? st.id : null));
-      if (sel.type === "station") {
-        showPlace(null);
+      if (sel.type === "station") showPlace(null); else showPlace(point, title, ref);
+      if (M.sourcesOn) {
+        loadWindHist().then(function () { renderAirPath(); if (updateTraceDisplay()) flyToTrace(); });
+      } else if (zone) {
+        flyTo({ bounds: boundsOf(zone.ring), maxZoom: 11 });
+      } else if (sel.type === "station") {
         flyTo({ center: point, zoom: 10.5 });
+      } else if (ref && ref.km > 2.5) {
+        flyTo({ bounds: boundsOf([point, [ref.station.lon, ref.station.lat]]), maxZoom: 12.5 });
       } else {
-        showPlace(point, title, ref);
-        if (ref && ref.km > 2.5) flyTo({ bounds: boundsOf([point, [ref.station.lon, ref.station.lat]]), maxZoom: 12.5 });
-        else flyTo({ center: point, zoom: 12.5 });
+        flyTo({ center: point, zoom: 12.5 });
       }
     }
   }
@@ -1016,6 +1209,9 @@
     if (sum.highest) renderTrend($("trend"), sum.highest, "Last 24 hours at " + sum.highest.name + ", the highest station in " + sel.state);
     else $("trend").innerHTML = "";
     renderForecast($("forecast"), sum.highest);
+    renderAirPath();
+    updateZones();
+    if (moveMap) updateTraceDisplay();
 
     if (moveMap) {
       showPlace(null);
@@ -1178,6 +1374,77 @@
       "). Source agencies: DOE and DOSM.</p>");
   }
 
+  // ================================================================ how the IPU works
+
+  var LAG = { hours: 6, level: 200 };
+
+  function renderExplainer() {
+    var box = $("explainer-body"), r = S.rule;
+    var o = r ? r.outdoor.threshold : 100, c = r ? r.closure.threshold : 200;
+    var syms = [["**", "PM2.5, fine particles (the main cause of haze)"], ["*", "PM10, larger particles"], ["a", "Sulphur dioxide (SO\u2082)"],
+                ["b", "Nitrogen dioxide (NO\u2082)"], ["c", "Ozone (O\u2083)"], ["d", "Carbon monoxide (CO)"], ["&", "Two or more pollutants with the same index"]];
+    var rows = L.CATEGORIES.map(function (k) {
+      var range = k.max === Infinity ? "300+" : k.min + "–" + k.max;
+      var school = k.max <= 50 ? "Normal" : k.max <= 100 ? "Normal" : k.max <= 200 ? "Outdoor activities stop above " + o + "; schools close once it reaches " + c : "Schools closed";
+      return "<tr><td>" + badge(k.min === 0 ? 0 : k.min) + '</td><td class="num">' + range + "</td><td>" + esc(school) + "</td></tr>";
+    }).join("");
+    box.innerHTML = '<div class="explain-grid">' +
+      "<div><h3>One number from six pollutants</h3><p>Each DOE station measures six pollutants. Each gets its own sub-index, and the IPU you see is the highest of them. " +
+      "The small symbol APIMS shows beside a reading says which pollutant set it:</p><dl class=\"sym-list\">" +
+      syms.map(function (x) { return "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl></div>" +
+      "<div><h3>Why it lags behind the haze you see</h3><p>For PM2.5 and PM10, the particles that make haze, DOE uses a <b>24-hour running average</b>: every hourly IPU reflects the whole last day. " +
+      "So thick smoke takes hours to push the IPU up, and the IPU stays high for hours after the air clears. Gases use shorter averages: one hour for ozone, sulphur dioxide and nitrogen dioxide, eight hours for carbon monoxide.</p>" +
+      "<p>Try it. This is an illustration with made-up numbers, not real readings:</p>" +
+      '<div class="lag-controls"><label>Thick smoke lasts <output id="lag-h-out"></output><input id="lag-h" type="range" min="1" max="24" step="1" value="' + LAG.hours + '"></label>' +
+      '<label>Smoke level in the air <output id="lag-l-out"></output><input id="lag-l" type="range" min="60" max="300" step="10" value="' + LAG.level + '"></label></div>' +
+      '<div id="lag-chart" class="chart"></div><p class="lag-result" id="lag-result"></p></div>' +
+      "<div><h3>What the numbers mean</h3><div class='table-wrap'><table class='cat-table'><thead><tr><th>Category</th><th class='num'>IPU</th><th>For schools (current rule)</th></tr></thead><tbody>" +
+      rows + "</tbody></table></div><p class='small muted' style='margin-top:8px'>School rule: " + esc(r ? r.name : "") + ".</p></div>" +
+      "</div>";
+    drawLag();
+  }
+
+  function drawLag() {
+    var chart = $("lag-chart");
+    if (!chart) return;
+    var base = 25, start = 10, H = LAG.hours, lvl = LAG.level, N = 60;
+    var hourly = [];
+    for (var h = 0; h < N; h++) hourly.push(h >= start && h < start + H ? lvl : base);
+    var avg = hourly.map(function (_, h) {
+      var a = 0;
+      for (var k = 0; k < 24; k++) a += h - k >= 0 ? hourly[h - k] : base;
+      return a / 24;
+    });
+    var peakAvg = Math.max.apply(null, avg), peakAt = avg.indexOf(peakAvg);
+    var backDown = -1;
+    for (var h2 = peakAt; h2 < N; h2++) if (avg[h2] <= base + 0.5) { backDown = h2; break; }
+    $("lag-h-out").textContent = " " + H + " hour" + (H > 1 ? "s" : "");
+    $("lag-l-out").textContent = " " + lvl + " µg/m³";
+    chart.innerHTML = "";
+    var W2 = Math.max(280, chart.clientWidth || 400), Ht = 190, padL = 34, padR = 8, padT = 12, padB = 26;
+    var ymax = Math.ceil(Math.max(lvl, 60) / 50) * 50;
+    var sx = function (h) { return padL + (h / (N - 1)) * (W2 - padL - padR); };
+    var sy = function (v) { return Ht - padB - (v / ymax) * (Ht - padT - padB); };
+    var svg = svgEl("svg", { viewBox: "0 0 " + W2 + " " + Ht, width: W2, height: Ht, role: "img",
+      "aria-label": "Illustration: hourly smoke level and its 24-hour average" });
+    for (var g = 0; g <= ymax; g += 50) {
+      svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
+      svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
+    }
+    for (var t = 0; t < N; t += 12) svg.appendChild(svgEl("text", { x: sx(t), y: Ht - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, "hour " + t));
+    svg.appendChild(svgEl("rect", { x: sx(start), y: padT, width: Math.max(1, sx(start + H) - sx(start)), height: Ht - padT - padB, fill: T().series, opacity: 0.08 }));
+    var line = function (arr) { return arr.map(function (v, h) { return (h ? "L" : "M") + sx(h).toFixed(1) + " " + sy(v).toFixed(1); }).join(" "); };
+    svg.appendChild(svgEl("path", { d: line(hourly), fill: "none", stroke: T().series, color: T().series, "stroke-width": 1.8, "class": "series" }));
+    svg.appendChild(svgEl("path", { d: line(avg), fill: "none", stroke: T().ink, "stroke-width": 3, "stroke-linejoin": "round" }));
+    svg.appendChild(svgEl("text", { x: sx(start + H / 2), y: sy(lvl) - 6, "font-size": 11, fill: T().series, "text-anchor": "middle", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "smoke right now"));
+    svg.appendChild(svgEl("text", { x: Math.min(sx(peakAt) + 6, W2 - 120), y: sy(peakAvg) - 8, "font-size": 11, fill: T().ink, stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "24-hour average (what the IPU follows)"));
+    chart.appendChild(svg);
+    var after = backDown > 0 ? backDown - (start + H) : null;
+    $("lag-result").innerHTML = "The air reaches <b>" + lvl + "</b> µg/m³ for " + H + " hour" + (H > 1 ? "s" : "") + ", but the 24-hour average only climbs to <b>" + Math.round(peakAvg) +
+      "</b>, " + Math.round(peakAvg / lvl * 100) + "% of the real level" + (after !== null ? ", and it stays raised for <b>" + after + " hours</b> after the smoke has gone." : ".") +
+      (H >= 24 ? " Only smoke lasting a full day pushes the average all the way up." : " Haze has to last most of a day to push the IPU all the way up.");
+  }
+
   // ================================================================ about
 
   function renderAbout() {
@@ -1337,6 +1604,7 @@
     renderLegend();
     if (S.data) { renderOverview(); renderTable(); renderMarkers(); renderSelection(false); renderOutlook(); }
     renderSourcesSection();
+    renderExplainer();
     renderDosm();
     if (M.map) {
       M.styleReady = false;
@@ -1357,6 +1625,7 @@
     renderOutlook();
     renderSourcesSection();
     updateSourcesOnMap();
+    if (S.firstPaint || !$("lag-chart")) renderExplainer();
     renderAbout();
     S.firstPaint = false;
   }
@@ -1365,7 +1634,11 @@
     return Promise.all([
       getJSON("data/forecast.json").catch(function () { return null; }),
       getJSON("data/sources.json").catch(function () { return null; })
-    ]).then(function (r) { S.forecast = r[0]; S.sources = r[1]; });
+    ]).then(function (r) {
+      var newHist = r[1] && S.sources && r[1].generated_at !== S.sources.generated_at;
+      S.forecast = r[0]; S.sources = r[1];
+      if (newHist) { S.windHist = null; S.trace = null; }
+    });
   }
 
   function refresh() {
@@ -1417,6 +1690,13 @@
     $("theme-btn").addEventListener("click", function () { applyTheme(themeName() === "neon" ? "light" : "neon"); });
     $("src-btn").addEventListener("click", function () { setSources(!M.sourcesOn, true); });
     document.addEventListener("click", function (ev) {
+      if (ev.target.closest("#trace-show")) {
+        if (!M.sourcesOn) setSources(true, false);
+        updateTraceDisplay();
+        flyToTrace();
+        renderAirPath();
+        document.querySelector(".map-wrap").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
+      }
       if (ev.target.closest("#src-show")) {
         setSources(!M.sourcesOn, true);
         document.querySelector(".map-wrap").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
@@ -1428,12 +1708,16 @@
     });
     ["f-state", "f-sort"].forEach(function (id) { $(id).addEventListener("change", renderTable); });
     $("f-text").addEventListener("input", renderTable);
+    document.addEventListener("input", function (ev) {
+      if (ev.target.id === "lag-h") { LAG.hours = Number(ev.target.value); drawLag(); }
+      if (ev.target.id === "lag-l") { LAG.level = Number(ev.target.value); drawLag(); }
+    });
     var rt = null, lastW = window.innerWidth;
     window.addEventListener("resize", function () {
       if (window.innerWidth === lastW) return;          // ignore mobile toolbar show/hide
       lastW = window.innerWidth;
       clearTimeout(rt);
-      rt = setTimeout(function () { renderSelection(false); renderDosm(); }, 200);
+      rt = setTimeout(function () { renderSelection(false); renderDosm(); drawLag(); }, 200);
     });
     window.addEventListener("hashchange", function () { var h = readHash(); if (h) select(h, { keepHash: true }); });
   }

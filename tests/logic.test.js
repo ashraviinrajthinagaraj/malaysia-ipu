@@ -195,3 +195,51 @@ test("wind direction names where the wind comes from", () => {
   assert.equal(L.windFrom(0, -5), "north");
   assert.equal(L.windFrom(-5, 0), "east");
 });
+
+// ---- air paths and coverage zones
+function windHist(u, v, hours) {           // uniform wind everywhere, m/s
+  const grid = { lon0: 93, lat0: -8, dlon: 1.5, dlat: 1.5, nx: 20, ny: 13 };
+  const n = grid.nx * grid.ny, t0 = 29000000;
+  const times = [], U = [], V = [];
+  for (let h = 0; h <= hours; h++) { times.push(t0 + h * 60); U.push(Array(n).fill(u * 10)); V.push(Array(n).fill(v * 10)); }
+  return { grid, times, u: U, v: V };
+}
+
+test("air path goes upwind: wind from the south-west means the air came from the south-west", () => {
+  const h = windHist(3.54, 3.54, 80);                       // 5 m/s from the SW
+  const tr = L.backTrajectory(h, 101.45, 3.04, 18);
+  const last = tr.hourly[tr.hourly.length - 1];
+  assert.ok(last[0] < 101.45 && last[1] < 3.04);            // back towards the south-west
+  assert.ok(Math.abs(tr.km - 5 * 18 * 3.6) < 6);            // 5 m/s for 18 h is about 324 km
+  assert.equal(tr.hourly.length, 19);
+  assert.equal(L.regionOf(last[0], last[1]), "Sumatra");
+});
+
+test("air path stops at the edge of the wind data", () => {
+  const h = windHist(-20, 0, 80);                            // strong wind from the east: path runs east
+  const tr = L.backTrajectory(h, 118, 5, 72);
+  assert.ok(tr.hoursCovered < 72);
+  assert.ok(tr.hourly[tr.hourly.length - 1][0] <= 121.5);
+});
+
+test("regions and fires near a path", () => {
+  assert.equal(L.regionOf(102.0, -1.0), "Sumatra");
+  assert.equal(L.regionOf(113.5, -1.5), "Borneo");
+  assert.equal(L.regionOf(101.7, 3.1), "Peninsular Malaysia");
+  assert.equal(L.regionOf(100.5, 3.0), "the Strait of Malacca");
+  const dense = [];
+  for (let i = 0; i <= 48; i++) dense.push([101.5 - i * 0.05, 3.0 - i * 0.08, 30000 - i * 60]);
+  const fires = [[101.0, 2.2, 10], [99.5, 1.5, 5], [101.48, 2.98, 8]];
+  const near = L.firesNearPath(dense, fires, 25, 2);
+  assert.deepEqual(near.indexes, [0]);                       // far fire and the one at the start are excluded
+});
+
+test("coverage zones: each point lies in the zone of its nearest station", () => {
+  const sites = [{ id: "A", lon: 101.0, lat: 3.0 }, { id: "B", lon: 102.0, lat: 3.0 }, { id: "C", lon: 101.5, lat: 4.0 }];
+  const z = L.coverageZones(sites, [[99, 1], [104, 6]]);
+  assert.equal(Object.keys(z).length, 3);
+  assert.ok(L.inPoly(101.1, 2.9, z.A));
+  assert.ok(!L.inPoly(101.1, 2.9, z.B));
+  assert.ok(L.inPoly(101.9, 3.1, z.B));
+  assert.ok(L.inPoly(101.5, 4.5, z.C));
+});

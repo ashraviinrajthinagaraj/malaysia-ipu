@@ -90,6 +90,12 @@ These two features are kept apart from the official data and are labelled on the
 - **Forecast (estimate, not official):** `scripts/fetch_forecast.py` downloads the CAMS PM2.5 forecast (Copernicus Atmosphere Monitoring Service, via Open-Meteo) for every station at most every 3 hours, and scales it to that station's official IPU over the last 24 hours. It writes `docs/data/forecast.json`. It is never used for the official reading or the school-closure check, which use DOE APIMS only.
 - **Where the haze comes from:** `scripts/fetch_sources.py` reads NASA FIRMS satellite fire detections (VIIRS, last 24 hours; anything older than 36 hours is never shown) and the current 10 m wind from the Open-Meteo weather model. It writes `docs/data/sources.json`. The map's "Where the haze comes from" button shows the hotspots and animated wind.
 
+## Air paths, coverage zones and the IPU explainer
+
+- **Where this air came from (model estimate):** `scripts/fetch_sources.py` also saves 3 days of hourly low-level wind (925 hPa, about 800 m up; Open-Meteo) to `docs/data/wind_history.json`. When a school, town, place or your location is selected, the page traces the air backwards through that wind for up to 3 days, shows the path on the map (in "Where the haze comes from" mode, instead of the general wind flow) and counts the fire hotspots within 25 km of the route.
+- **Which station covers me:** with "Use my location", the map divides the country into the area closest to each station with a current reading and highlights the one you are in.
+- **How the IPU works:** an interactive section near the bottom explains the six pollutants, the 24-hour average and why the IPU lags behind visible haze, using an illustration with made-up numbers.
+
 ## Files
 
 ```

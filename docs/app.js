@@ -602,7 +602,7 @@
     [[S.rule.outdoor.threshold, T().outdoor], [S.rule.closure.threshold, T().closure]].forEach(function (r) {
       svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(r[0]), y2: sy(r[0]), stroke: r[1], "stroke-dasharray": "4 4" }));
     });
-    svg.appendChild(svgEl("text", { x: padL + 4, y: sy(S.rule.closure.threshold) - 5, "font-size": 11, fill: T().closure, stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "200: school-closure level"));
+    svg.appendChild(svgEl("text", { x: W2 - padR - 2, y: sy(S.rule.closure.threshold) + 14, "font-size": 11, fill: T().closure, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "200: closure level"));
     var t24 = x0 + 24 * 3600000;
     if (t24 < x1) {
       svg.appendChild(svgEl("line", { x1: sx(t24), x2: sx(t24), y1: padT, y2: H - padB, stroke: T().axis, "stroke-dasharray": "2 3", opacity: 0.7 }));

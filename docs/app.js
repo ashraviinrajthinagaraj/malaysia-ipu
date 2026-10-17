@@ -6,7 +6,27 @@
   var UPDATE_MINUTE = 20;                 // the GitHub workflow runs at minute 20 of every hour
   var REFRESH_MS = 10 * 60 * 1000;        // re-read data/latest.json every 10 minutes
   var NOMINATIM = "https://nominatim.openstreetmap.org/search";
-  var STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+  var THEMES = {
+    light: {
+      style: "https://tiles.openfreemap.org/styles/positron",
+      cats: { good: "#1f6fd1", moderate: "#1e9e4a", unhealthy: "#f2c200", very: "#f07f13", hazardous: "#d62728" },
+      inks: { good: "#ffffff", moderate: "#ffffff", unhealthy: "#1a1a1a", very: "#1a1a1a", hazardous: "#ffffff" },
+      off: "#c9d3d6", offInk: "#64767d", haze: 0.2, link: "#172a35",
+      grid: "#e9efee", axis: "#64767d", ink: "#172a35", halo: "#ffffff", outdoor: "#8d9da2", closure: "#c4442f",
+      series: "#2a78d6", seriesB: "#eb6834", area: 0.08,
+      fallback: { sea: "#dfe8ec", land: "#f6f8f8", coast: "#a9b8bd" }, meta: "#ffffff"
+    },
+    neon: {
+      style: "https://tiles.openfreemap.org/styles/dark",
+      cats: { good: "#4a9dff", moderate: "#19e3b1", unhealthy: "#ffd23f", very: "#ff7f2a", hazardous: "#ff3d81" },
+      inks: { good: "#041019", moderate: "#041019", unhealthy: "#041019", very: "#041019", hazardous: "#041019" },
+      off: "#33406a", offInk: "#8394ba", haze: 0.34, link: "#47f3ff",
+      grid: "#162043", axis: "#8394ba", ink: "#eaf3ff", halo: "#070b18", outdoor: "#5b6fa8", closure: "#ff3d81",
+      series: "#47f3ff", seriesB: "#ff5ce1", area: 0.14,
+      fallback: { sea: "#04060d", land: "#0f1730", coast: "#2b3d70" }, meta: "#070b18"
+    }
+  };
+  var THEME_KEY = "ipu-theme";
   var MY_BOUNDS = [[99.6, 0.85], [119.3, 7.4]];
   var REDUCE = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -16,6 +36,15 @@
             fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5 };
 
   function $(id) { return document.getElementById(id); }
+  function themeName() { return document.documentElement.getAttribute("data-theme") === "neon" ? "neon" : "light"; }
+  function T() { return THEMES[themeName()]; }
+  /* Category for a reading, with this theme's colours. */
+  function cat(api) {
+    var c = L.categoryFor(api);
+    if (!c) return null;
+    return { key: c.key, label: c.label, min: c.min, max: c.max, color: T().cats[c.key], ink: T().inks[c.key] };
+  }
+  function swatch(color) { return "background:" + color + ";--c:" + color; }
   function now() { return new Date(); }
   function esc(s) {
     return String(s === null || s === undefined ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -30,9 +59,9 @@
       .then(function (r) { if (!r.ok) throw new Error(path + ": HTTP " + r.status); return r.json(); });
   }
   function badge(api) {
-    var c = L.categoryFor(api);
+    var c = cat(api);
     if (!c) return '<span class="cat none">No current reading</span>';
-    return '<span class="cat"><i style="background:' + c.color + '"></i>' + esc(c.label) + "</span>";
+    return '<span class="cat"><i style="' + swatch(c.color) + '"></i>' + esc(c.label) + "</span>";
   }
   function readingTime(iso, n) {
     var t = L.parseTime(iso);
@@ -95,9 +124,9 @@
       version: 8,
       sources: { mys: { type: "geojson", data: "data/malaysia-outline.json" } },
       layers: [
-        { id: "sea", type: "background", paint: { "background-color": "#dfe8ec" } },
-        { id: "land", type: "fill", source: "mys", paint: { "fill-color": "#f6f8f8" } },
-        { id: "coast", type: "line", source: "mys", paint: { "line-color": "#a9b8bd", "line-width": 1 } }
+        { id: "sea", type: "background", paint: { "background-color": T().fallback.sea } },
+        { id: "land", type: "fill", source: "mys", paint: { "fill-color": T().fallback.land } },
+        { id: "coast", type: "line", source: "mys", paint: { "line-color": T().fallback.coast, "line-width": 1 } }
       ]
     };
   }
@@ -119,7 +148,7 @@
     if (!window.maplibregl) { mapUnavailable("The map could not be loaded. Search and the station list below still work."); return; }
     try {
       M.map = new maplibregl.Map({
-        container: "map", style: STYLE_URL,
+        container: "map", style: T().style,
         center: REDUCE ? [109.4, 4.1] : [106, 9], zoom: REDUCE ? 4.6 : 2.3,
         attributionControl: { compact: true }, cooperativeGestures: isMobile(),
         dragRotate: false, pitchWithRotate: false, touchPitch: false, minZoom: 2, maxZoom: 16.5
@@ -158,9 +187,9 @@
     return {
       type: "FeatureCollection",
       features: stations().filter(function (s) { return typeof s.lat === "number" && typeof s.lon === "number"; }).map(function (s) {
-        var cur = L.stationCurrent(s, n), c = L.categoryFor(cur ? s.api : null);
+        var cur = L.stationCurrent(s, n), c = cat(cur ? s.api : null);
         return { type: "Feature", geometry: { type: "Point", coordinates: [s.lon, s.lat] },
-                 properties: { id: s.id, api: cur ? s.api : 0, current: cur, color: c ? c.color : "#9aa9ae" } };
+                 properties: { id: s.id, api: cur ? s.api : 0, current: cur, color: c ? c.color : T().off } };
       })
     };
   }
@@ -173,7 +202,7 @@
     if (!map.getLayer("haze")) {
       map.addLayer({ id: "haze", type: "circle", source: "stations", paint: {
         "circle-color": ["get", "color"],
-        "circle-opacity": ["case", ["get", "current"], 0.2, 0],
+        "circle-opacity": ["case", ["get", "current"], T().haze, 0],
         "circle-blur": 1,
         "circle-radius": ["interpolate", ["exponential", 2], ["zoom"],
           4, ["+", 8, ["/", ["get", "api"], 12]],
@@ -185,7 +214,7 @@
     if (!map.getSource("link")) map.addSource("link", { type: "geojson", data: M.link || { type: "FeatureCollection", features: [] } });
     if (!map.getLayer("link")) {
       map.addLayer({ id: "link", type: "line", source: "link", layout: { "line-cap": "round" },
-        paint: { "line-color": "#172a35", "line-width": 2.2, "line-dasharray": [1.2, 1.6], "line-opacity": 0.85 } });
+        paint: { "line-color": T().link, "line-width": 2.2, "line-dasharray": [1.2, 1.6], "line-opacity": 0.85 } });
     }
     var cam = map.cameraForBounds(MY_BOUNDS, { padding: pad() });
     if (cam) M.homeZoom = cam.zoom;
@@ -214,7 +243,7 @@
     stations().forEach(function (s) {
       if (typeof s.lat !== "number" || typeof s.lon !== "number") return;
       seen[s.id] = true;
-      var cur = L.stationCurrent(s, n), c = L.categoryFor(cur ? s.api : null);
+      var cur = L.stationCurrent(s, n), c = cat(cur ? s.api : null);
       var m = M.markers[s.id];
       if (!m) {
         var wrap = document.createElement("div");
@@ -226,7 +255,7 @@
         b.addEventListener("mouseenter", function (ev) {
           var st = M.markers[s.id].station, cc = L.stationCurrent(st, now());
           showTip("<b>" + esc(st.name) + "</b>, " + esc(st.state) + "<br>" +
-            (cc ? "IPU " + st.api + " (" + esc(L.categoryFor(st.api).label) + ") at " + esc(readingTime(st.observed, now())) : "No current reading"), ev.clientX, ev.clientY);
+            (cc ? "IPU " + st.api + " (" + esc(cat(st.api).label) + ") at " + esc(readingTime(st.observed, now())) : "No current reading"), ev.clientX, ev.clientY);
         });
         b.addEventListener("mouseleave", hideTip);
         wrap.appendChild(b);
@@ -234,8 +263,8 @@
       }
       m.station = s;
       m.btn.classList.toggle("off", !cur);
-      m.btn.style.setProperty("--c", c ? c.color : "#ffffff");
-      m.btn.style.setProperty("--ci", c ? c.ink : "#64767d");
+      m.btn.style.setProperty("--c", c ? c.color : "var(--paper)");
+      m.btn.style.setProperty("--ci", c ? c.ink : T().offInk);
       m.btn.style.setProperty("--d", Math.round(700 + (s.lon - 99.6) / 19.7 * 1300) + "ms");
       m.btn.querySelector(".n").textContent = cur ? s.api : "–";
       m.btn.setAttribute("aria-label", s.name + ", " + s.state + ": " + (cur ? "IPU " + s.api + ", " + c.label : "no current reading"));
@@ -309,7 +338,7 @@
 
   function renderLegend() {
     $("map-legend").innerHTML = L.CATEGORIES.map(function (c) {
-      return '<span><i style="background:' + c.color + '"></i>' + esc(c.label) + "</span>";
+      return '<span><i style="' + swatch(T().cats[c.key]) + '"></i>' + esc(c.label) + "</span>";
     }).join("");
   }
 
@@ -338,8 +367,8 @@
     var reached = sum.current.filter(function (s) { return S.rule && L.meets(s.api, S.rule.closure); });
     var html = "";
     if (sum.highest) {
-      html += '<span class="k">Highest</span><span class="v" data-count="' + sum.highest.api + '">' + sum.highest.api + '</span><span class="p">' + badge(sum.highest.api) + who(sum.highestAll) + "</span>";
-      html += '<span class="k">Lowest</span><span class="v" data-count="' + sum.lowest.api + '">' + sum.lowest.api + '</span><span class="p">' + badge(sum.lowest.api) + who(sum.lowestAll) + "</span>";
+      html += '<span class="k">Highest</span><span class="v" style="--c:' + cat(sum.highest.api).color + '" data-count="' + sum.highest.api + '">' + sum.highest.api + '</span><span class="p">' + badge(sum.highest.api) + who(sum.highestAll) + "</span>";
+      html += '<span class="k">Lowest</span><span class="v" style="--c:' + cat(sum.lowest.api).color + '" data-count="' + sum.lowest.api + '">' + sum.lowest.api + '</span><span class="p">' + badge(sum.lowest.api) + who(sum.lowestAll) + "</span>";
     } else {
       html += '<span class="summary-foot">No station has a current reading.</span>';
     }
@@ -353,10 +382,10 @@
     // distribution bar
     var total = sum.current.length || 1;
     var dist = '<div class="dist-bar" role="img" aria-label="Stations by category">' + L.CATEGORIES.map(function (c) {
-      return sum.counts[c.key] ? '<span data-w="' + (sum.counts[c.key] / total * 100) + '" style="background:' + c.color + '"></span>' : "";
+      return sum.counts[c.key] ? '<span data-w="' + (sum.counts[c.key] / total * 100) + '" style="' + swatch(T().cats[c.key]) + '"></span>' : "";
     }).join("") + '</div><div class="dist-legend">' + L.CATEGORIES.map(function (c) {
       var range = c.max === Infinity ? "300+" : c.min + "–" + c.max;
-      return '<span><i style="background:' + c.color + '"></i>' + esc(c.label) + ' <span class="muted">' + range + "</span> <b>" + sum.counts[c.key] + "</b></span>";
+      return '<span><i style="' + swatch(T().cats[c.key]) + '"></i>' + esc(c.label) + ' <span class="muted">' + range + "</span> <b>" + sum.counts[c.key] + "</b></span>";
     }).join("") + "</div>";
     $("dist").innerHTML = dist;
     Array.prototype.forEach.call(document.querySelectorAll(".dist-bar span"), function (el) { growTo(el, Number(el.dataset.w)); });
@@ -367,9 +396,9 @@
     var max = Math.max(250, rows.length ? rows[0].api : 0);
     var o = S.rule ? S.rule.outdoor.threshold : 100, cl = S.rule ? S.rule.closure.threshold : 200;
     $("state-bars").innerHTML = rows.length ? rows.map(function (r) {
-      var c = L.categoryFor(r.api);
+      var c = cat(r.api);
       return '<button type="button" class="srow" data-state="' + esc(r.state) + '" aria-label="' + esc(r.state + ": highest " + r.api + ", " + c.label + ", at " + r.name) + '">' +
-        '<span class="s-name">' + esc(r.state) + '</span><span class="track"><span class="fill" data-w="' + (r.api / max * 100) + '" style="background:' + c.color + '"></span>' +
+        '<span class="s-name">' + esc(r.state) + '</span><span class="track"><span class="fill" data-w="' + (r.api / max * 100) + '" style="' + swatch(c.color) + '"></span>' +
         '<span class="tick" style="left:' + (o / max * 100) + '%"></span><span class="tick closure" style="left:' + (cl / max * 100) + '%"></span></span>' +
         '<span class="s-val">' + r.api + "</span></button>";
     }).join("") + '<p class="bars-key">Dashed marks: ' + o + " (outdoor activities stop above this) and " + cl + " (school-closure level). Tap a state to see it on the map.</p>"
@@ -410,9 +439,9 @@
     var html = "", last = null;
     list.forEach(function (s) {
       if (sort === "state" && s.state !== last) { last = s.state; html += '<tr class="group-row"><td colspan="4">' + esc(s.state) + "</td></tr>"; }
-      var cur = L.stationCurrent(s, n), c = L.categoryFor(cur ? s.api : null), pol = L.pollutantName(s.pollutant);
+      var cur = L.stationCurrent(s, n), c = cat(cur ? s.api : null), pol = L.pollutantName(s.pollutant);
       html += '<tr tabindex="0" data-station="' + esc(s.id) + '"' + (cur ? "" : ' class="outdated"') + ">" +
-        '<td><span class="dot" style="background:' + (c ? c.color : "#c9d3d6") + '"></span>' + esc(s.name) +
+        '<td><span class="dot" style="' + swatch(c ? c.color : T().off) + '"></span>' + esc(s.name) +
         '<span class="sub">' + (sort === "state" ? "" : esc(s.state) + ", ") + esc(s.id) + (s.place ? ", " + esc(L.tidy(s.place)) : "") + "</span></td>" +
         '<td class="num api">' + (cur ? esc(s.api) : "—") + "</td>" +
         '<td class="hide-sm">' + (cur ? badge(s.api) + (pol ? '<span class="sub">' + esc(pol) + "</span>" : "") : badge(null)) + "</td>" +
@@ -527,7 +556,7 @@
       }
     } else {
       var rs = ref.station, self = sel.type === "station" && rs.id === sel.id;
-      html += '<div class="reading"><span class="big">' + esc(rs.api) + '</span><span class="meta">' + badge(rs.api) +
+      html += '<div class="reading" style="--c:' + cat(rs.api).color + '"><span class="big">' + esc(rs.api) + '</span><span class="meta">' + badge(rs.api) +
         '<span class="where">' + (self ? "IPU at this station" : "IPU at " + esc(rs.name) + " station, " + (ref.km < 1 ? "under 1 km" : Math.round(ref.km) + " km") + " away") +
         "</span></span></div>" +
         '<p class="small muted">Reading for ' + esc(L.fmtDateTime(L.parseTime(rs.observed))) +
@@ -574,9 +603,9 @@
   function nearHTML(m, ref, n) {
     return '<div class="near"><h3>Nearest stations</h3><div class="table-wrap"><table class="mini"><thead><tr><th>Station</th><th class="num">Distance</th><th class="num">IPU</th><th class="hide-sm">Time</th></tr></thead><tbody>' +
       m.shown.map(function (x) {
-        var s = x.station, cur = L.stationCurrent(s, n), c = L.categoryFor(cur ? s.api : null);
+        var s = x.station, cur = L.stationCurrent(s, n), c = cat(cur ? s.api : null);
         return '<tr tabindex="0" data-station="' + esc(s.id) + '"' + (cur ? "" : ' class="outdated"') + ">" +
-          '<td><span class="dot" style="background:' + (c ? c.color : "#c9d3d6") + '"></span>' + esc(s.name) + (ref && x === ref ? " (reference)" : "") +
+          '<td><span class="dot" style="' + swatch(c ? c.color : T().off) + '"></span>' + esc(s.name) + (ref && x === ref ? " (reference)" : "") +
           '<span class="sub">' + esc(s.state) + "</span></td>" +
           '<td class="num">' + (x.km < 1 ? "&lt;1" : Math.round(x.km)) + " km</td>" +
           '<td class="num api">' + (cur ? esc(s.api) : "—") + '</td><td class="hide-sm">' + esc(readingTime(s.observed, n)) + "</td></tr>";
@@ -629,7 +658,7 @@
     }
     var html = '<p class="sel-sub">' + sum.stations.length + " monitoring station" + (sum.stations.length > 1 ? "s" : "") + ", " + sum.current.length + " with a current reading</p>";
     if (sum.highest) {
-      html += '<div class="reading"><span class="big">' + esc(sum.highest.api) + '</span><span class="meta">' + badge(sum.highest.api) +
+      html += '<div class="reading" style="--c:' + cat(sum.highest.api).color + '"><span class="big">' + esc(sum.highest.api) + '</span><span class="meta">' + badge(sum.highest.api) +
         '<span class="where">Highest now, at ' + esc(sum.highest.name) + "</span></span></div>" +
         (sum.lowest && sum.lowest !== sum.highest ? '<p class="small muted">Lowest now: ' + esc(sum.lowest.api) + " at " + esc(sum.lowest.name) + ".</p>" : "");
     }
@@ -664,8 +693,8 @@
       sum.stations.slice().sort(function (a, b) {
         return (L.stationCurrent(b, n) ? b.api : -1) - (L.stationCurrent(a, n) ? a.api : -1);
       }).map(function (s) {
-        var cur = L.stationCurrent(s, n), c = L.categoryFor(cur ? s.api : null);
-        return '<tr tabindex="0" data-station="' + esc(s.id) + '"' + (cur ? "" : ' class="outdated"') + '><td><span class="dot" style="background:' + (c ? c.color : "#c9d3d6") + '"></span>' + esc(s.name) + "</td>" +
+        var cur = L.stationCurrent(s, n), c = cat(cur ? s.api : null);
+        return '<tr tabindex="0" data-station="' + esc(s.id) + '"' + (cur ? "" : ' class="outdated"') + '><td><span class="dot" style="' + swatch(c ? c.color : T().off) + '"></span>' + esc(s.name) + "</td>" +
           '<td class="num api">' + (cur ? esc(s.api) : "—") + '</td><td class="hide-sm">' + badge(cur ? s.api : null) + "</td><td>" + esc(readingTime(s.observed, n)) + "</td></tr>";
       }).join("") + "</tbody></table></div></div>";
     $("prediction").innerHTML = p;
@@ -717,27 +746,27 @@
     var sy = function (v) { return H - padB - (v / ymax) * (H - padT - padB); };
     var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": "Hourly IPU at " + st.name + " over the last 24 hours" });
     for (var g = 0; g <= ymax; g += 50) {
-      svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(g), y2: sy(g), stroke: "#e9efee" }));
-      svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: "#64767d", "text-anchor": "end" }, String(g)));
+      svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
+      svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
     }
     var step = 6 * 3600000;
     for (var tt = Math.ceil(t0 / step) * step; tt <= t1; tt += step) {
-      svg.appendChild(svgEl("text", { x: sx(tt), y: H - 6, "font-size": 11, fill: "#64767d", "text-anchor": "middle" }, L.fmtTime(new Date(tt))));
+      svg.appendChild(svgEl("text", { x: sx(tt), y: H - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, L.fmtTime(new Date(tt))));
     }
     if (S.rule) {
-      [[S.rule.outdoor.threshold, "100: outdoor activities stop above this", "#8d9da2"], [S.rule.closure.threshold, "200: school-closure level", "#c4442f"]].forEach(function (r) {
+      [[S.rule.outdoor.threshold, "100: outdoor activities stop above this", T().outdoor], [S.rule.closure.threshold, "200: school-closure level", T().closure]].forEach(function (r) {
         svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(r[0]), y2: sy(r[0]), stroke: r[2], "stroke-dasharray": "4 4" }));
-        svg.appendChild(svgEl("text", { x: padL + 4, y: sy(r[0]) - 5, "font-size": 11, fill: r[2], stroke: "#fff", "stroke-width": 3, "paint-order": "stroke" }, r[1]));
+        svg.appendChild(svgEl("text", { x: padL + 4, y: sy(r[0]) - 5, "font-size": 11, fill: r[2], stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, r[1]));
       });
     }
     var area = "M" + sx(t0).toFixed(1) + " " + sy(0).toFixed(1) + " " + pts.map(function (p) { return "L" + sx(p.t.getTime()).toFixed(1) + " " + sy(p.y).toFixed(1); }).join(" ") + " L" + sx(t1).toFixed(1) + " " + sy(0).toFixed(1) + " Z";
-    svg.appendChild(svgEl("path", { d: area, fill: "#2a78d6", opacity: 0.08 }));
+    svg.appendChild(svgEl("path", { d: area, fill: T().series, opacity: T().area }));
     var d = pts.map(function (p, i) { return (i ? "L" : "M") + sx(p.t.getTime()).toFixed(1) + " " + sy(p.y).toFixed(1); }).join(" ");
-    var line = svgEl("path", { d: d, fill: "none", stroke: "#2a78d6", "stroke-width": 2.2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+    var line = svgEl("path", { d: d, fill: "none", stroke: T().series, color: T().series, "stroke-width": 2.2, "class": "series", "stroke-linejoin": "round", "stroke-linecap": "round" });
     svg.appendChild(line);
-    svg.appendChild(svgEl("circle", { cx: sx(t1), cy: sy(lastPt.y), r: 4.5, fill: "#2a78d6", stroke: "#fff", "stroke-width": 2 }));
-    var cross = svgEl("line", { x1: 0, x2: 0, y1: padT, y2: H - padB, stroke: "#172a35", "stroke-width": 1, opacity: 0 });
-    var dot = svgEl("circle", { r: 4.5, fill: "#2a78d6", stroke: "#fff", "stroke-width": 2, opacity: 0 });
+    svg.appendChild(svgEl("circle", { cx: sx(t1), cy: sy(lastPt.y), r: 4.5, fill: T().series, stroke: T().halo, "stroke-width": 2 }));
+    var cross = svgEl("line", { x1: 0, x2: 0, y1: padT, y2: H - padB, stroke: T().ink, "stroke-width": 1, opacity: 0 });
+    var dot = svgEl("circle", { r: 4.5, fill: T().series, stroke: T().halo, "stroke-width": 2, opacity: 0 });
     svg.appendChild(cross); svg.appendChild(dot);
     var overlay = svgEl("rect", { x: padL, y: padT, width: W - padL - padR, height: H - padT - padB, fill: "transparent" });
     function hover(ev) {
@@ -746,7 +775,7 @@
       var x = sx(best.t.getTime());
       cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("opacity", 0.3);
       dot.setAttribute("cx", x); dot.setAttribute("cy", sy(best.y)); dot.setAttribute("opacity", 1);
-      showTip("<b>" + best.y + "</b> " + esc(L.categoryFor(best.y).label) + "<br>" + esc(L.fmtDateTime(best.t)), ev.clientX, ev.clientY);
+      showTip("<b>" + best.y + "</b> " + esc(cat(best.y).label) + "<br>" + esc(L.fmtDateTime(best.t)), ev.clientX, ev.clientY);
     }
     overlay.addEventListener("mousemove", hover);
     overlay.addEventListener("touchstart", function (ev) { if (ev.touches[0]) hover(ev.touches[0]); }, { passive: true });
@@ -776,7 +805,7 @@
   function renderDosm() {
     var box = $("dosm"), d = S.dosm;
     if (!d || !d.rows || !d.rows.length) { box.innerHTML = '<p class="muted">DOSM history has not been downloaded yet. It is added by the hourly update.</p>'; return; }
-    var want = [["pm25", "PM2.5", "#2a78d6"], ["pm10", "PM10", "#eb6834"]];
+    var want = [["pm25", "PM2.5", T().series], ["pm10", "PM10", T().seriesB]];
     var series = want.map(function (w) {
       return { name: w[1], color: w[2], pts: d.rows.filter(function (r) { return r[1] === w[0] && r[2] !== null; })
         .map(function (r) { return { t: new Date(r[0] + "T00:00:00Z"), y: r[2], date: r[0] }; }) };
@@ -795,22 +824,22 @@
     var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": "Monthly national average PM2.5 and PM10, DOSM" });
     var gstep = ymax > 60 ? 20 : 10;
     for (var g = 0; g <= ymax; g += gstep) {
-      svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(g), y2: sy(g), stroke: "#e9efee" }));
-      svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: "#64767d", "text-anchor": "end" }, String(g)));
+      svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
+      svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
     }
     var y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t1).getUTCFullYear();
     var ystep = Math.max(1, Math.ceil((y1 - y0 + 1) / Math.max(2, Math.floor(W / 70))));
     for (var yr = y0; yr <= y1; yr += ystep) {
       var tx = Date.UTC(yr, 0, 1);
-      if (tx >= t0) svg.appendChild(svgEl("text", { x: sx(tx), y: H - 5, "font-size": 11, fill: "#64767d", "text-anchor": "middle" }, String(yr)));
+      if (tx >= t0) svg.appendChild(svgEl("text", { x: sx(tx), y: H - 5, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, String(yr)));
     }
     series.forEach(function (s) {
       var dd = s.pts.map(function (p, i) { return (i ? "L" : "M") + sx(p.t.getTime()).toFixed(1) + " " + sy(p.y).toFixed(1); }).join(" ");
-      svg.appendChild(svgEl("path", { d: dd, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round" }));
+      svg.appendChild(svgEl("path", { d: dd, fill: "none", stroke: s.color, color: s.color, "stroke-width": 2, "stroke-linejoin": "round", "class": "series" }));
       var last = s.pts[s.pts.length - 1];
-      svg.appendChild(svgEl("text", { x: sx(last.t.getTime()) + 5, y: sy(last.y) + 4, "font-size": 11.5, fill: "#172a35" }, s.name));
+      svg.appendChild(svgEl("text", { x: sx(last.t.getTime()) + 5, y: sy(last.y) + 4, "font-size": 11.5, fill: T().ink }, s.name));
     });
-    var cross = svgEl("line", { y1: padT, y2: H - padB, stroke: "#172a35", opacity: 0 });
+    var cross = svgEl("line", { y1: padT, y2: H - padB, stroke: T().ink, opacity: 0 });
     svg.appendChild(cross);
     var overlay = svgEl("rect", { x: padL, y: padT, width: W - padL - padR, height: H - padT - padB, fill: "transparent" });
     function hover(ev) {
@@ -828,7 +857,7 @@
     svg.appendChild(overlay);
     chart.appendChild(svg);
     box.insertAdjacentHTML("beforeend", '<div class="legend-row">' + series.map(function (s) {
-      return '<span><i style="background:' + s.color + '"></i>' + esc(s.name) + "</span>";
+      return '<span><i style="' + swatch(s.color) + '"></i>' + esc(s.name) + "</span>";
     }).join("") + '</div><p class="small muted" style="margin-top:8px">Source: <a href="' + esc(d.source.page) + '" rel="noopener">OpenDOSM, Monthly Air Pollution</a> (' + esc(d.source.licence) +
       "). Source agencies: DOE and DOSM.</p>");
   }
@@ -963,6 +992,38 @@
   }
   function msg(text) { $("results").innerHTML = '<div class="msg">' + esc(text) + "</div>"; }
 
+  // ================================================================ theme
+
+  function setThemeButton() {
+    var on = themeName() === "neon";
+    var b = $("theme-btn");
+    if (!b) return;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.querySelector(".theme-label").textContent = on ? "Neon on" : "Neon";
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", T().meta);
+  }
+
+  function applyTheme(name) {
+    var root = document.documentElement;
+    if (!REDUCE) {
+      root.classList.add("theme-anim");
+      setTimeout(function () { root.classList.remove("theme-anim"); }, 700);
+    }
+    if (name === "neon") root.setAttribute("data-theme", "neon"); else root.removeAttribute("data-theme");
+    try { localStorage.setItem(THEME_KEY, name); } catch (e) { /* private mode: keep for this visit only */ }
+    setThemeButton();
+    // redraw everything that carries theme colours
+    renderLegend();
+    if (S.data) { renderOverview(); renderTable(); renderMarkers(); renderSelection(false); }
+    renderDosm();
+    if (M.map) {
+      M.styleReady = false;
+      try { M.map.setStyle(M.fallbackUsed ? fallbackStyle() : T().style, { diff: false }); }
+      catch (e) { useFallback(); }
+    }
+  }
+
   // ================================================================ wiring
 
   function renderAll() {
@@ -1022,6 +1083,7 @@
     $("loc-btn").addEventListener("click", useMyLocation);
     $("sel-close").addEventListener("click", clearSelection);
     $("map-home").addEventListener("click", flyHome);
+    $("theme-btn").addEventListener("click", function () { applyTheme(themeName() === "neon" ? "light" : "neon"); });
     ["f-state", "f-sort"].forEach(function (id) { $(id).addEventListener("change", renderTable); });
     $("f-text").addEventListener("input", renderTable);
     var rt = null, lastW = window.innerWidth;
@@ -1035,6 +1097,7 @@
   }
 
   function init() {
+    setThemeButton();
     bind();
     initMap();
     Promise.all([

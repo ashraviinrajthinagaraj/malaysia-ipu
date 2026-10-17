@@ -6,6 +6,10 @@
 <title>IPU Malaysia</title>
 <meta name="description" content="Official hourly Air Pollutant Index (IPU) for every DOE monitoring station in Malaysia, and whether schools near a town or school may close because of haze.">
 <meta name="theme-color" content="#ffffff">
+<script>
+  /* Apply the saved theme before the page paints, so neon mode does not flash white. */
+  try { if (localStorage.getItem("ipu-theme") === "neon") document.documentElement.setAttribute("data-theme", "neon"); } catch (e) {}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap">
@@ -16,6 +20,9 @@
 <div class="app">
 
   <header class="top" aria-labelledby="site-title">
+    <button id="theme-btn" type="button" class="theme-switch" aria-pressed="false" title="Switch neon dark mode on or off">
+      <span class="knob" aria-hidden="true"></span><span class="theme-label">Neon</span>
+    </button>
     <div class="brand">
       <h1 id="site-title">IPU Malaysia</h1>
       <p class="tagline">Official hourly haze readings for every DOE station, and whether schools near you may close.</p>
@@ -97,6 +104,7 @@
     <footer class="foot">
       <p>Readings: Department of Environment Malaysia, <a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">APIMS</a>. History: <a href="https://open.dosm.gov.my/data-catalogue/air_pollution" rel="noopener">OpenDOSM</a>. Map: <a href="https://openfreemap.org" rel="noopener">OpenFreeMap</a>, <a href="https://openmaptiles.org" rel="noopener">© OpenMapTiles</a>, <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a>; map engine MapLibre GL JS. Place search: Nominatim (OpenStreetMap).</p>
       <p>An independent dashboard, not an official government service. School-status predictions are not closure announcements.</p>
+      <p class="credit">Created by Ashraviinraj Thinagaraj.</p>
     </footer>
   </main>
 </div>

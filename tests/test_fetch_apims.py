@@ -192,6 +192,8 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(fetch_apims.split_location("Batu Muda, W.P. KUALA LUMPUR"), "Batu Muda")
         self.assertEqual(fetch_apims.nice_case("NEGERI SEMBILAN"), "Negeri Sembilan")
         self.assertEqual(fetch_apims.nice_case("W.P. KUALA LUMPUR"), "W.P. Kuala Lumpur")
+        self.assertEqual(fetch_apims.nice_case(fetch_apims.split_location("JOHAN SETIA, SELANGOR")), "Johan Setia")
+        self.assertEqual(fetch_apims.nice_case("ILP Miri"), "ILP Miri")
 
 
 if __name__ == "__main__":

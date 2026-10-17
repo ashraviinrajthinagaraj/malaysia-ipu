@@ -198,7 +198,7 @@ def fetch_map():
         observed = map_wall_time(ms) if isinstance(ms, (int, float)) and ms > 0 else None
         out[sid] = {
             "id": sid,
-            "name": split_location(a.get("STATION_LOCATION"), state),
+            "name": nice_case(split_location(a.get("STATION_LOCATION"), state)),
             "location": " ".join(str(a.get("STATION_LOCATION") or "").split()),
             "place": " ".join(str(a.get("PLACE") or "").split()) or None,
             "state": state,
@@ -328,7 +328,7 @@ def build(now, prev):
             if tab:
                 m = tab["meta"]
                 base["location"] = base.get("location") or m.get("location")
-                base["name"] = base.get("name") or split_location(m.get("location"), base.get("state"))
+                base["name"] = base.get("name") or nice_case(split_location(m.get("location"), base.get("state")))
                 base["lat"] = base.get("lat") or m.get("lat")
                 base["lon"] = base.get("lon") or m.get("lon")
                 base["state_id"] = base.get("state_id") or m.get("state_id")

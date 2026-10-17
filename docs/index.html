@@ -2,102 +2,106 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Malaysia IPU Dashboard</title>
-<meta name="description" content="Current official Air Pollutant Index (IPU) readings for every DOE monitoring station in Malaysia, with a school-closure prediction for any state, town or school.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IPU Malaysia</title>
+<meta name="description" content="Official hourly Air Pollutant Index (IPU) for every DOE monitoring station in Malaysia, and whether schools near a town or school may close because of haze.">
+<meta name="theme-color" content="#ffffff">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap">
+<link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="page-head">
-  <div class="wrap">
-    <h1>Malaysia Air Pollutant Index (IPU)</h1>
-    <p class="lede">Official hourly readings from the Department of Environment's APIMS for every monitoring station, with a school-closure prediction for any state, town or school.</p>
-    <div id="status" class="status" aria-live="polite">Loading readings…</div>
+<div class="app">
+
+  <header class="top" aria-labelledby="site-title">
+    <div class="brand">
+      <h1 id="site-title">IPU Malaysia</h1>
+      <p class="tagline">Official hourly haze readings for every DOE station, and whether schools near you may close.</p>
+    </div>
+    <div id="status" class="status" aria-live="polite"><span class="live-dot"></span><span>Loading readings…</span></div>
+    <div class="search" role="search">
+      <label for="q" class="visually-hidden">Search a state, town, school or monitoring station</label>
+      <div class="search-field">
+        <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="q" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
+               placeholder="Search a town or school"
+               aria-controls="results" aria-describedby="search-note">
+        <button id="places-btn" type="button" class="search-go">Search</button>
+      </div>
+      <button id="loc-btn" type="button" class="locate" title="Use my location" aria-label="Use my location">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <div id="results" class="results" role="listbox" aria-label="Search results"></div>
+      <p id="search-note" class="search-note"></p>
+    </div>
+  </header>
+
+  <div class="map-wrap">
+    <div id="map" class="map" role="region" aria-label="Map of monitoring stations in Malaysia"></div>
+    <button id="map-home" type="button" class="map-chip" hidden>Show all of Malaysia</button>
+    <div class="map-legend" id="map-legend" aria-hidden="true"></div>
+    <div id="map-fallback" class="map-fallback" hidden></div>
   </div>
-</header>
 
-<main class="wrap">
-  <section class="search-block" aria-labelledby="search-h">
-    <h2 id="search-h">Find a location</h2>
-    <label for="q" class="hint">Search a state, town, school or monitoring station</label>
-    <div class="search-row">
-      <input id="q" type="search" autocomplete="off" spellcheck="false"
-             placeholder="e.g. Kuala Pilah, SMK Seri Pagi, Selangor, Cheras"
-             aria-controls="results" aria-describedby="search-note">
-      <button id="places-btn" type="button">Search places</button>
-      <button id="loc-btn" type="button" class="secondary">Use my location</button>
-    </div>
-    <p id="search-note" class="small muted"></p>
-    <div id="results" class="results" role="listbox" aria-label="Search results"></div>
-  </section>
+  <main class="body">
+    <section id="selection" class="selection" hidden aria-live="polite" aria-labelledby="sel-title">
+      <div class="sel-head">
+        <h2 id="sel-title">Selected location</h2>
+        <button id="sel-close" type="button" class="text-btn">Close</button>
+      </div>
+      <div id="loc-info"></div>
+      <div id="prediction" class="prediction"></div>
+      <div id="trend"></div>
+    </section>
 
-  <section id="selection" class="selection" hidden aria-live="polite">
-    <div class="sel-head">
-      <h2 id="sel-title">Selected location</h2>
-      <button id="sel-close" type="button" class="link">Close</button>
-    </div>
-    <div class="sel-grid">
-      <div id="loc-info" class="panel"></div>
-      <aside id="prediction" class="panel prediction" aria-label="School status prediction"></aside>
-    </div>
-    <div id="trend" class="panel"></div>
-  </section>
+    <section id="overview" aria-labelledby="overview-h">
+      <h2 id="overview-h">Malaysia right now</h2>
+      <div id="summary" class="summary"></div>
+      <div id="dist" class="dist"></div>
+      <h3>Highest reading in each state</h3>
+      <div id="state-bars" class="state-bars"></div>
+    </section>
 
-  <section id="overview" aria-labelledby="overview-h">
-    <h2 id="overview-h">National overview</h2>
-    <div id="summary" class="summary"></div>
-    <div class="legend" id="legend"></div>
-    <h3>Highest current reading in each state</h3>
-    <div id="state-chart" class="chart"></div>
-  </section>
-
-  <section id="stations" aria-labelledby="stations-h">
-    <h2 id="stations-h">All monitoring stations</h2>
-    <div class="filters">
-      <label>State
-        <select id="f-state"><option value="">All states</option></select>
-      </label>
-      <label>Sort by
-        <select id="f-sort">
-          <option value="state">State, then station</option>
-          <option value="api-desc">IPU, highest first</option>
-          <option value="api-asc">IPU, lowest first</option>
-          <option value="name">Station name</option>
+    <section id="stations" aria-labelledby="stations-h">
+      <h2 id="stations-h">All stations</h2>
+      <div class="filters">
+        <select id="f-state" aria-label="State"><option value="">All states</option></select>
+        <select id="f-sort" aria-label="Sort">
+          <option value="state">By state</option>
+          <option value="api-desc">Highest IPU first</option>
+          <option value="api-asc">Lowest IPU first</option>
+          <option value="name">By name</option>
         </select>
-      </label>
-      <label>Filter
-        <input id="f-text" type="search" placeholder="Station or town">
-      </label>
-    </div>
-    <p class="small muted">Select a station to see its 24-hour readings and school-status prediction.</p>
-    <div class="table-wrap">
-      <table id="station-table">
-        <thead><tr><th>Station</th><th>State</th><th class="num">IPU</th><th>Category</th><th>Reading time</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
+        <input id="f-text" type="search" placeholder="Filter stations" aria-label="Filter stations">
+      </div>
+      <div class="table-wrap">
+        <table id="station-table">
+          <thead><tr><th>Station</th><th class="num">IPU</th><th class="hide-sm">Category</th><th>Time</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
 
-  <section id="history" aria-labelledby="history-h">
-    <h2 id="history-h">Historical context (DOSM)</h2>
-    <div id="dosm"></div>
-  </section>
+    <section id="history" aria-labelledby="history-h">
+      <h2 id="history-h">Fine particles since 2017</h2>
+      <div id="dosm"></div>
+    </section>
 
-  <section id="about" aria-labelledby="about-h">
-    <h2 id="about-h">About this dashboard</h2>
-    <div id="about-body"></div>
-  </section>
-</main>
+    <section id="about" aria-labelledby="about-h">
+      <h2 id="about-h">How this works</h2>
+      <div id="about-body"></div>
+    </section>
 
-<footer class="page-foot">
-  <div class="wrap small muted">
-    Readings: Department of Environment Malaysia, <a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">APIMS</a>.
-    Historical statistics: <a href="https://open.dosm.gov.my/data-catalogue/air_pollution" rel="noopener">OpenDOSM</a>.
-    Place search: <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a> (Nominatim).
-    This is an independent dashboard, not an official government service. School-status predictions are not closure announcements.
-  </div>
-</footer>
+    <footer class="foot">
+      <p>Readings: Department of Environment Malaysia, <a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">APIMS</a>. History: <a href="https://open.dosm.gov.my/data-catalogue/air_pollution" rel="noopener">OpenDOSM</a>. Map: <a href="https://openfreemap.org" rel="noopener">OpenFreeMap</a>, <a href="https://openmaptiles.org" rel="noopener">© OpenMapTiles</a>, <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a>; map engine MapLibre GL JS. Place search: Nominatim (OpenStreetMap).</p>
+      <p>An independent dashboard, not an official government service. School-status predictions are not closure announcements.</p>
+    </footer>
+  </main>
+</div>
 <div id="tip" class="tip" role="tooltip" hidden></div>
+<script src="vendor/maplibre/maplibre-gl.js"></script>
 <script src="logic.js"></script>
 <script src="app.js"></script>
 </body>

@@ -377,13 +377,13 @@
     (stations || []).forEach(function (s) {
       var sc = Math.max(scoreText(s.name, q, tokens), scoreText(s.location, q, tokens),
                         scoreText(s.place, q, tokens), s.id && norm(s.id) === q ? 100 : 0);
-      if (sc) res.push({ type: "station", label: s.name, sub: "Monitoring station · " + s.state, score: sc + 3, id: s.id });
+      if (sc) res.push({ type: "station", label: s.name, sub: "Monitoring station in " + s.state, score: sc + 3, id: s.id });
     });
     if (schools && schools.length) {
       var towns = {};
       schools.forEach(function (r) {
         var sc = Math.max(scoreText(r[1], q, tokens), r[0] && norm(r[0]) === q ? 100 : 0);
-        if (sc) res.push({ type: "school", label: tidy(r[1]), sub: "School · " + [r[4], r[3], r[2]].filter(Boolean).map(tidy).join(", "),
+        if (sc) res.push({ type: "school", label: tidy(r[1]), sub: [r[4], r[3], r[2]].filter(Boolean).map(tidy).join(", "),
                            score: sc, code: r[0], lat: r[5], lon: r[6], state: tidy(r[2]), town: tidy(r[4]), district: tidy(r[3]) });
         [["town", r[4]], ["district", r[3]]].forEach(function (pair) {
           if (!pair[1]) return;
@@ -395,8 +395,8 @@
       Object.keys(towns).forEach(function (k) {
         var t = towns[k];
         var sc = scoreText(t.name, q, tokens);
-        if (sc) res.push({ type: "locality", label: tidy(t.name), sub: (t.kind === "district" ? "District · " : "Town · ") + tidy(t.state) +
-                           " (centre of " + t.n + " school" + (t.n > 1 ? "s" : "") + ")",
+        if (sc) res.push({ type: "locality", label: tidy(t.name), sub: (t.kind === "district" ? "District in " : "Town in ") + tidy(t.state) +
+                           ", centre of " + t.n + " school" + (t.n > 1 ? "s" : ""),
                            score: sc + 2, lat: t.lat / t.n, lon: t.lon / t.n, state: tidy(t.state) });
       });
     }

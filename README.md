@@ -87,7 +87,8 @@ Closures are actually decided and announced by KPM, JPN and PPD. If the rule cha
 
 ```
 docs/                    the website (published to GitHub Pages)
-  index.html, style.css  page and styles (white, plain, responsive)
+  index.html, style.css  page and styles (map-first, responsive)
+  vendor/maplibre/       map engine (MapLibre GL JS 4.7.1)
   logic.js               categories, matching, prediction, search (pure functions, tested)
   app.js                 page behaviour, charts, search, hourly re-read of the data
   data/latest.json       current readings (written by the hourly job)
@@ -114,6 +115,7 @@ Then open http://localhost:8000.
 
 ## Credits and notices
 - Readings: Department of Environment Malaysia, APIMS.
+- Map: MapLibre GL JS (BSD-3-Clause, included in `docs/vendor/maplibre`), map tiles from OpenFreeMap (© OpenMapTiles, © OpenStreetMap contributors). If the tiles can't load, the map falls back to a simple Natural Earth outline of Malaysia (`docs/data/malaysia-outline.json`).
 - Historical statistics: OpenDOSM (CC BY 4.0).
 - Place search: © OpenStreetMap contributors, via the Nominatim service. The site sends at most one search per second, and only when you press Search.
 - This is an independent dashboard, not an official government service.

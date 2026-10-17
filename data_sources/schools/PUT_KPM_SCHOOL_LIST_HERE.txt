@@ -1,0 +1,2 @@
+Put the Ministry of Education (KPM) school list here (.xlsx or .csv, with KOORDINATXX/KOORDINATYY columns).
+See README.md, "Adding the official school list".

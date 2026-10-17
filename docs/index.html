@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Malaysia IPU Dashboard</title>
+<meta name="description" content="Current official Air Pollutant Index (IPU) readings for every DOE monitoring station in Malaysia, with a school-closure prediction for any state, town or school.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="page-head">
+  <div class="wrap">
+    <h1>Malaysia Air Pollutant Index (IPU)</h1>
+    <p class="lede">Official hourly readings from the Department of Environment's APIMS for every monitoring station, with a school-closure prediction for any state, town or school.</p>
+    <div id="status" class="status" aria-live="polite">Loading readings…</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="search-block" aria-labelledby="search-h">
+    <h2 id="search-h">Find a location</h2>
+    <label for="q" class="hint">Search a state, town, school or monitoring station</label>
+    <div class="search-row">
+      <input id="q" type="search" autocomplete="off" spellcheck="false"
+             placeholder="e.g. Kuala Pilah, SMK Seri Pagi, Selangor, Cheras"
+             aria-controls="results" aria-describedby="search-note">
+      <button id="places-btn" type="button">Search places</button>
+      <button id="loc-btn" type="button" class="secondary">Use my location</button>
+    </div>
+    <p id="search-note" class="small muted"></p>
+    <div id="results" class="results" role="listbox" aria-label="Search results"></div>
+  </section>
+
+  <section id="selection" class="selection" hidden aria-live="polite">
+    <div class="sel-head">
+      <h2 id="sel-title">Selected location</h2>
+      <button id="sel-close" type="button" class="link">Close</button>
+    </div>
+    <div class="sel-grid">
+      <div id="loc-info" class="panel"></div>
+      <aside id="prediction" class="panel prediction" aria-label="School status prediction"></aside>
+    </div>
+    <div id="trend" class="panel"></div>
+  </section>
+
+  <section id="overview" aria-labelledby="overview-h">
+    <h2 id="overview-h">National overview</h2>
+    <div id="summary" class="summary"></div>
+    <div class="legend" id="legend"></div>
+    <h3>Highest current reading in each state</h3>
+    <div id="state-chart" class="chart"></div>
+  </section>
+
+  <section id="stations" aria-labelledby="stations-h">
+    <h2 id="stations-h">All monitoring stations</h2>
+    <div class="filters">
+      <label>State
+        <select id="f-state"><option value="">All states</option></select>
+      </label>
+      <label>Sort by
+        <select id="f-sort">
+          <option value="state">State, then station</option>
+          <option value="api-desc">IPU, highest first</option>
+          <option value="api-asc">IPU, lowest first</option>
+          <option value="name">Station name</option>
+        </select>
+      </label>
+      <label>Filter
+        <input id="f-text" type="search" placeholder="Station or town">
+      </label>
+    </div>
+    <p class="small muted">Select a station to see its 24-hour readings and school-status prediction.</p>
+    <div class="table-wrap">
+      <table id="station-table">
+        <thead><tr><th>Station</th><th>State</th><th class="num">IPU</th><th>Category</th><th>Reading time</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="history" aria-labelledby="history-h">
+    <h2 id="history-h">Historical context (DOSM)</h2>
+    <div id="dosm"></div>
+  </section>
+
+  <section id="about" aria-labelledby="about-h">
+    <h2 id="about-h">About this dashboard</h2>
+    <div id="about-body"></div>
+  </section>
+</main>
+
+<footer class="page-foot">
+  <div class="wrap small muted">
+    Readings: Department of Environment Malaysia, <a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">APIMS</a>.
+    Historical statistics: <a href="https://open.dosm.gov.my/data-catalogue/air_pollution" rel="noopener">OpenDOSM</a>.
+    Place search: <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a> (Nominatim).
+    This is an independent dashboard, not an official government service. School-status predictions are not closure announcements.
+  </div>
+</footer>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<script src="logic.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

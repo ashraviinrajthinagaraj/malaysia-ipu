@@ -1,0 +1,82 @@
+name: Hourly IPU update
+
+on:
+  schedule:
+    # Minute 20 of every hour (UTC; Malaysia has the same minutes). DOE publishes
+    # each hour's readings shortly after the hour. GitHub may start a run a few minutes late.
+    - cron: "20 * * * *"
+  workflow_dispatch:        # "Run workflow" button for a manual update
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "scripts/**"
+      - "tests/**"
+      - "data_sources/**"
+      - ".github/workflows/update.yml"
+
+permissions:
+  contents: write    # save the new data files in the repository
+  pages: write       # publish the website
+  id-token: write    # required by the Pages deploy step
+
+concurrency:
+  group: ipu-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Get the repository
+        uses: actions/checkout@v7
+
+      - name: Run the tests (not on the hourly schedule)
+        if: github.event_name != 'schedule'
+        run: |
+          python3 -m unittest discover -s tests -v
+          node --test tests/logic.test.js
+
+      - name: Read the latest readings from DOE APIMS
+        id: apims
+        continue-on-error: true
+        run: python3 scripts/fetch_apims.py
+
+      - name: Refresh DOSM historical data (at most weekly)
+        continue-on-error: true
+        run: python3 scripts/fetch_dosm.py
+
+      - name: Build the school list (if a KPM file was added)
+        continue-on-error: true
+        run: python3 scripts/build_schools.py
+
+      - name: Save the data in the repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "Data update $(TZ=Asia/Kuala_Lumpur date '+%Y-%m-%d %H:%M') Malaysia time"
+            git push || (git pull --rebase && git push)
+          fi
+
+      - name: Pack the website
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs
+
+      - name: Publish the website
+        id: deploy
+        uses: actions/deploy-pages@v5
+
+      - name: Flag a failed APIMS read
+        if: steps.apims.outcome == 'failure'
+        run: |
+          echo "::warning::APIMS could not be read this hour. The site keeps the last readings and marks them as possibly outdated."
+          exit 1

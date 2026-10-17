@@ -9,11 +9,14 @@ Method, per station:
   1. Model: hourly PM2.5 forecast from the Copernicus Atmosphere Monitoring
      Service (CAMS global), served by Open-Meteo's air-quality API, at the
      station's coordinates. Turned into a 24-hour running mean, like the IPU.
-  2. Calibration: over the last 24 hours, compare the station's official
-     hourly IPU with that model mean. The middle ratio scales the model to
-     this station's IPU; the smallest and largest ratios give the range.
-  3. Start: the estimate starts at the station's latest official reading and
-     blends into the scaled model over about 12 hours.
+  2. Estimate: the model's predicted change in that running mean is applied
+     to the station's latest official reading (estimate = official now x
+     model mean then / model mean now).
+  3. Check: over the last 24 hours the station's official readings are
+     compared with the model. If they disagree far too much, no estimate is
+     made; if the model sees much less haze than DOE, or the comparison is
+     unstable, the estimate is marked low confidence and its range is wider.
+     The range always widens the further ahead it looks.
   No estimate is made when there are too few official readings to calibrate,
   or when the latest official reading is more than 3 hours old.
 
@@ -21,7 +24,6 @@ The model data is downloaded at most every 3 hours (it updates twice a day)
 and kept in data_cache/cams.json. Python standard library only.
 """
 import json
-import math
 import os
 import sys
 import time
@@ -43,9 +45,11 @@ AQ_URL = os.environ.get("OPEN_METEO_AQ_URL", "https://air-quality-api.open-meteo
 REFRESH = timedelta(hours=3)
 CHUNK = 25                 # locations per request
 HORIZON_H = 48             # hours of estimate after the latest official reading
-BLEND_H = 12.0             # how fast the start value blends into the scaled model
 MIN_PAIRS = 6              # official/model pairs needed to calibrate
-RATIO_LIMITS = (0.4, 6.0)
+RATIO_LIMITS = (0.3, 12.0)  # outside this the model and DOE disagree too much: no estimate
+LOW_CONF_RATIO = 6.0        # above this the model sees far less haze than DOE measures
+MIN_BAND = 0.08             # the range is at least +/- 8% ...
+BAND_PER_HOUR = 0.004       # ... plus 0.4% per hour ahead (about +/- 27% at 48 h)
 STALE_H = 3
 RETRY_WAIT = float(os.environ.get("OPEN_METEO_RETRY_WAIT", "4"))
 
@@ -194,15 +198,17 @@ def estimate_station(st, cams, now):
             ratios.append(o / r)
     if len(ratios) < MIN_PAIRS:
         return None, "not enough official readings to calibrate the model"
-    lo_lim, hi_lim = RATIO_LIMITS
-    clamp = lambda x: min(hi_lim, max(lo_lim, x))
-    k_mid, k_lo, k_hi = clamp(median(ratios)), clamp(min(ratios)), clamp(max(ratios))
+    k_mid, k_lo, k_hi = median(ratios), min(ratios), max(ratios)
+    if not (RATIO_LIMITS[0] <= k_mid <= RATIO_LIMITS[1]):
+        return None, "the model and the official readings disagree too much to make an estimate"
+    spread = (k_hi - k_lo) / k_mid
+    low_conf = k_mid > LOW_CONF_RATIO or spread > 0.5
+    extra = 0.10 if low_conf else 0.0
 
     r0 = running_mean(cams, t0)
-    if r0 is None:
+    if r0 is None or r0 <= 1:
         return None, "no model data at the time of the latest reading"
     start = float(st["api"])
-    off_mid, off_lo, off_hi = start - k_mid * r0, start - k_lo * r0, start - k_hi * r0
 
     est, lo, hi, times = [], [], [], []
     for h in range(1, HORIZON_H + 1):
@@ -210,9 +216,9 @@ def estimate_station(st, cams, now):
         r = running_mean(cams, t)
         if r is None:
             break
-        w = math.exp(-h / BLEND_H)
-        e, a, b = k_mid * r + off_mid * w, k_lo * r + off_lo * w, k_hi * r + off_hi * w
-        lo_v, hi_v = min(a, b, e), max(a, b, e)
+        e = start * r / r0
+        width = e * (MIN_BAND + BAND_PER_HOUR * h + extra)
+        lo_v, hi_v = e - width, e + width
         times.append(key(t))
         est.append(max(0, round(e)))
         lo.append(max(0, round(lo_v)))
@@ -236,6 +242,7 @@ def estimate_station(st, cams, now):
         "start": times[0], "est": est, "lo": lo, "hi": hi,
         "peak24": {"time": times[i_pk], "est": est[i_pk], "lo": lo[i_pk], "hi": hi[i_pk]},
         "morning": morning, "reach200_24h": reach,
+        "confidence": "low" if low_conf else "normal",
         "calibration": {"pairs": len(ratios), "ratio": round(k_mid, 3), "ratio_low": round(k_lo, 3), "ratio_high": round(k_hi, 3)},
     }, None
 
@@ -267,8 +274,9 @@ def main():
         },
         "method": [
             "The CAMS PM2.5 forecast at the station is turned into a 24-hour running mean, like the IPU.",
-            "It is scaled to the station's official IPU using the last 24 hours of official readings; the smallest and largest ratios give the range.",
-            "The estimate starts at the latest official reading and blends into the scaled model over about 12 hours.",
+            "The model's predicted change in that mean is applied to the station's latest official reading.",
+            "The station's official readings over the last 24 hours are compared with the model. If they disagree far too much, no estimate is shown.",
+            "The range widens the further ahead it looks. Confidence is marked low where the model sees far less haze than DOE measures, or where the scaling is unstable.",
             "It covers PM2.5 haze only, ignores other pollutants, and the model's grid is about 40 km wide.",
         ],
         "stations": {},

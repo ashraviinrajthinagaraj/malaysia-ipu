@@ -19,7 +19,7 @@ MYT = timezone(timedelta(hours=8))
 NOW = datetime(2026, 10, 20, 14, 20)            # Tuesday 14:20 Malaysia time
 TODAY = NOW.replace(hour=0, minute=0)
 PM_BASE = 80.0                                   # past PM2.5, flat
-RISE = 2.0                                       # forecast PM2.5 rises this much per hour for 24 h
+RISE = 4.0                                       # forecast PM2.5 rises this much per hour for 24 h
 
 
 class Fake:
@@ -154,7 +154,9 @@ class ForecastTests(Base):
         self.assertEqual(a["anchor"], "2026-10-20T14:00")
         self.assertEqual(a["start"], "2026-10-20T15:00")
         self.assertLess(abs(a["est"][0] - 160), 5)          # starts at the official reading
-        self.assertEqual(a["reach200_24h"], "likely")        # model rises to about 105 µg/m³ mean x 2
+        self.assertEqual(a["reach200_24h"], "likely")        # model mean rises to about 130 µg/m³, x 2
+        self.assertEqual(a["confidence"], "normal")
+        self.assertGreater(a["hi"][23] - a["lo"][23], 0.3 * a["est"][23])   # range is never falsely narrow
         self.assertEqual(a["morning"]["time"], "2026-10-21T07:00")
         self.assertTrue(all(lo <= e <= hi for e, lo, hi in zip(a["est"], a["lo"], a["hi"])))
 
@@ -165,6 +167,14 @@ class ForecastTests(Base):
         self.assertNotIn("OLD", f["stations"])
         self.assertIn("more than 3 hours", f["skipped"]["OLD"])
         self.assertEqual(f["status"], "unavailable")
+
+    def test_large_disagreement_gives_no_estimate_and_high_ratio_is_low_confidence(self):
+        self.write_latest([station("FAR", 1200, ratio=15.0), station("LOW", 560, ratio=7.0, lon=103.0)])
+        self.run_script("fetch_forecast.py")
+        f = self.load()
+        self.assertNotIn("FAR", f["stations"])
+        self.assertIn("disagree", f["skipped"]["FAR"])
+        self.assertEqual(f["stations"]["LOW"]["confidence"], "low")
 
     def test_model_download_failure(self):
         self.write_latest([station("A", 160)])

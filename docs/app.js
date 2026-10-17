@@ -571,7 +571,9 @@
       '<p class="fc-lead">Estimated peak in the next 24 hours: <b>' + pk.est + "</b> (range " + pk.lo + " to " + pk.hi + "), around " + esc(whenText(pk.time)) + ".</p>" +
       '<dl class="facts"><dt>Could reach 200 in the next 24 hours</dt><dd>' + reach + "</dd>" +
       (fc.morning ? "<dt>Around 07:00 tomorrow</dt><dd>" + fc.morning.est + " (range " + fc.morning.lo + " to " + fc.morning.hi + ")</dd>" : "") +
-      (fcAll.model_stale ? "<dt>Model data</dt><dd>More than a day old</dd>" : "") + "</dl>";
+      "<dt>Confidence</dt><dd>" + (fc.confidence === "low" ? "Low" : "Normal") + "</dd>" +
+      (fcAll.model_stale ? "<dt>Model data</dt><dd>More than a day old</dd>" : "") + "</dl>" +
+      (fc.confidence === "low" ? '<p class="note">Low confidence: here the model sees much less haze than DOE measures, or the two have not matched well over the last day. Treat this as a rough guide.</p>' : "");
     box.innerHTML = html;
     var chart = document.createElement("div"); chart.className = "chart"; box.appendChild(chart);
     drawForecastChart(chart, st, fc);
@@ -650,7 +652,7 @@
     box.innerHTML = head + '<p class="fc-lead">' + esc(lead) + '</p><div class="fc-list">' + rows.slice(0, 5).map(function (r) {
       return '<button type="button" class="fc-row" data-station="' + esc(r.s.id) + '"><span class="nm">' + esc(r.s.name) + '</span><span class="pk">' + r.f.peak24.est + "</span>" +
         '<span class="sub">' + esc(r.s.state) + ", estimated peak " + r.f.peak24.lo + " to " + r.f.peak24.hi + " around " + esc(whenText(r.f.peak24.time)) +
-        (label[r.f.reach200_24h] ? ". " + label[r.f.reach200_24h] : "") + "</span></button>";
+        (label[r.f.reach200_24h] ? ". " + label[r.f.reach200_24h] : "") + (r.f.confidence === "low" ? ", low confidence" : "") + "</span></button>";
     }).join("") + '</div><p class="fc-note">Highest estimated peaks. These are model estimates, not DOE readings, and are not used for the school closure check.</p>';
   }
 

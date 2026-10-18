@@ -241,6 +241,21 @@
     return (stateList || []).some(function (x) { return sameState(x, state); });
   }
 
+  /* Which school holiday group a state is in ("A": Kedah, Kelantan, Terengganu; "B": the rest). */
+  function schoolGroup(state, rule) {
+    var a = (rule && rule.school_groups && rule.school_groups.A) || ["Kedah", "Kelantan", "Terengganu"];
+    return stateMatches(a, state) ? "A" : "B";
+  }
+
+  /* Does a holiday entry apply to a state? Entries name "states", or a "group" (A/B),
+     or neither (every state); "except" removes states. Older files used states: "others" for Group B. */
+  function holidayApplies(h, state, rule) {
+    if (h.except && stateMatches(h.except, state)) return false;
+    if (Array.isArray(h.states)) return stateMatches(h.states, state);
+    if (h.states === "others" || h.group) return schoolGroup(state, rule) === (h.group || "B");
+    return true;
+  }
+
   function noSchoolReason(dateKey, state, rule) {
     if (!rule) return null;
     var wk = rule.weekend || {};
@@ -250,14 +265,18 @@
     });
     if (days.indexOf(weekdayOfKey(dateKey)) >= 0) return { kind: "weekend", label: tr("Weekend") };
     var hols = rule.school_holidays || [];
-    var groupA = [];
-    hols.forEach(function (h) { if (Array.isArray(h.states)) groupA = groupA.concat(h.states); });
     for (var i = 0; i < hols.length; i++) {
       var h = hols[i];
-      var applies = Array.isArray(h.states) ? stateMatches(h.states, state) : !stateMatches(groupA, state);
-      if (applies && dateKey >= h.from && dateKey <= h.to) return { kind: "holiday", label: h.name };
+      if (dateKey >= h.from && dateKey <= h.to && holidayApplies(h, state, rule)) {
+        return { kind: "holiday", label: LANG === "ms" && h.name_ms ? h.name_ms : h.name };
+      }
     }
     return null;
+  }
+
+  /* True when the site's school calendar does not cover this date fully (see rule.calendar_note). */
+  function calendarIncomplete(dateKey, rule) {
+    return !!(rule && rule.calendar_complete_until && dateKey > rule.calendar_complete_until);
   }
 
   // ------------------------------------------------------------ prediction
@@ -339,7 +358,7 @@
       res.status = noSchool.kind === "weekend" ? tr("No school (weekend)") : tr("No school (holiday)");
       if (reachedToday) res.headline = tr("Closure threshold reached today");
       res.detail += tr(" Tomorrow (") + fmtDayKey(tomorrowKey) + tr(") is not a school day in ") + where +
-        (noSchool.kind === "weekend" ? tr(" (weekend).") : " (" + tr(noSchool.label) + ").");
+        (noSchool.kind === "weekend" ? tr(" (weekend).") : " (" + noSchool.label + ").");
       if (res.level !== "may_close") res.level = "no_school";
     }
     return res;
@@ -1052,7 +1071,7 @@
     regionOf: regionOf, pathRegions: pathRegions, firesNearPath: firesNearPath, coverageZones: coverageZones, inPoly: inPoly, STALE_HOURS: STALE_HOURS, CATEGORIES: CATEGORIES, categoryFor: categoryFor, pollutantName: pollutantName,
     parseTime: parseTime, mytDateKey: mytDateKey, fmtTime: fmtTime, fmtDateTime: fmtDateTime, fmtDayKey: fmtDayKey,
     addDaysKey: addDaysKey, weekdayOfKey: weekdayOfKey, ago: ago, freshness: freshness, stationCurrent: stationCurrent, pm25Time: pm25Time,
-    haversineKm: haversineKm, byDistance: byDistance, matchStations: matchStations, noSchoolReason: noSchoolReason,
+    haversineKm: haversineKm, byDistance: byDistance, matchStations: matchStations, noSchoolReason: noSchoolReason, schoolGroup: schoolGroup, calendarIncomplete: calendarIncomplete,
     predict: predict, stateSummary: stateSummary, norm: norm, searchLocal: searchLocal, nationalSummary: nationalSummary,
     stateKey: stateKey, sameState: sameState, tidy: tidy,
     todaysReadings: todaysReadings, meets: meets,

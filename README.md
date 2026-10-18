@@ -72,7 +72,11 @@ How the site applies the rule:
 - **If reached:** "Schools in this area may be closed tomorrow". PTJK closure is immediate, so it may already apply today.
 - **If not reached:** "Closure threshold not reached" at the latest available reading.
 - **Treatment of exactly 200:** the minister's statement says "reaches 200", while some reports say "exceeds 200". The site counts 200 itself as reaching the threshold.
-- **No-school days:** weekends are shown as no-school days. Kedah, Kelantan and Terengganu have Friday–Saturday weekends; all other states have Saturday–Sunday. The 2026 year-end school holidays are also included. Public holidays are not.
+- **No-school days:** weekends are shown as no-school days. Kedah, Kelantan and Terengganu (Group A) have Friday–Saturday weekends; all other states (Group B) have Saturday–Sunday. `school_holidays` in `rule.json` adds the rest, each entry with its source:
+  - 2026: Deepavali by group (KPM academic calendar 2026, including KPM's extra day), the Sultan of Perak's birthday (6 Nov, Perak), and the year-end holiday, which runs until the 2027 session starts on 4 Jan 2027 (Bernama, 2 Oct 2026).
+  - 2027: federal public holidays on school days and holidays named after a state (Prime Minister's Department's 2027 list), Sunday holidays moved to Monday in Group B states (Holidays Act 1951), and the year-end holiday from 3 Dec (Group A) or 4 Dec (Group B) until the 2028 session starts on 3 Jan 2028.
+  - **Not included for 2027:** term breaks, KPM's extra festive days and the remaining state holidays. KPM's 2027 calendar is a scanned PDF that could not be read here. From 4 Jan 2027 the page says so under the prediction (`calendar_complete_until`, `calendar_note`). To add them, copy the dates from the KPM calendar into `school_holidays` and move `calendar_complete_until` forward.
+  - An entry applies to `states` (a list), a `group` (`A` or `B`), or every state, minus any `except` states.
 - **Unavailable:** with no current reading at the reference station, no prediction is shown.
 
 Closures are actually decided and announced by KPM, JPN and PPD. If the rule changes, edit `rule.json`: the threshold, comparison, dates, wording and sources all live there, and the page reads them from it.
@@ -102,7 +106,7 @@ These two features are kept apart from the official data and are labelled on the
 - Where a school or place falls inside an announced closure, the closure check shows **Officially closed** with the dates and the Bernama link, instead of the IPU prediction. Closed areas are hatched on the map, and the header shows a banner.
 - `docs/data/boundaries.json` holds the official district boundaries from data.gov.my (simplified with `scripts/build_boundaries.py`), used to find which state and district a place is in.
 - `scripts/check_announcements.py` validates the file; the tests run it on every change.
-- A scheduled task checks Bernama every hour from about 6 am to 7 pm Malaysia time and updates the file (procedure: `scripts/ANNOUNCEMENTS_CHECK.md`).
+- A scheduled task checks Bernama every hour from about 6 am to 7 pm Malaysia time, **June to November**, and updates the file (procedure: `scripts/ANNOUNCEMENTS_CHECK.md`). From December to May it pauses by itself (its schedule only covers June to November) and starts again on 1 June; the page then says the check is paused instead of warning that it is late. The months are also listed in `announcements.json` (`check_months`); keep the two in step if the schedule changes.
 
 ## Rule vs reality
 
@@ -175,6 +179,26 @@ python3 scripts/fetch_apims.py
 python3 -m http.server 8000 -d docs
 ```
 Then open http://localhost:8000.
+
+## Hand-over: running the site without further changes
+
+The site is built to keep running on its own. This is what happens without anyone touching it, and the few things that will eventually need a person.
+
+**Runs by itself**
+- **Every hour (GitHub Actions, `.github/workflows/update.yml`):** official readings from DOE APIMS, daily highs, rule vs reality, calendar feeds, the forecast estimate, fires and wind, DOSM history (weekly), then the site is republished. If DOE cannot be reached, the page keeps the last readings and marks them as outdated; it never shows old readings as current.
+- **Every hour from 6 am to 7 pm, June to November (scheduled task "Hourly school closure check (Bernama)" in Claude):** adds official closures reported by Bernama, in English and Bahasa Melayu. It pauses from December to May and starts again on 1 June. Each run uses some of the account's Claude usage; to change or stop it, open the scheduled task in Claude and edit its schedule or turn it off.
+
+**Will need a person at some point**
+1. **The 2027 school calendar.** Term breaks, KPM's extra festive days and most state holidays for 2027 are not in `rule.json` yet (see "The school-closure rule" above). Until they are added, the page says so under each prediction from 4 Jan 2027.
+2. **2028 onwards.** After 2 Jan 2028 only weekends are known. Add the new year's holidays to `school_holidays` and move `calendar_complete_until`.
+3. **A change in the closure rule.** Edit `closure` in `rule.json` (and the `_ms` texts).
+4. **If DOE changes the APIMS data endpoints.** The page will show its readings as outdated, and the hourly job will show a failed "Read the latest readings" step. The endpoints are at the top of `scripts/fetch_apims.py`.
+5. **Repository size.** The hourly data commits add a few megabytes a day. Check the size about once a year (GitHub suggests staying under about 1 GB); if needed, old history can be squashed without affecting the site.
+6. **GitHub pausing the hourly job.** GitHub can turn off scheduled workflows in public repositories after a long period without activity. The hourly commits normally count as activity, but if the page's "Updated" time stops moving, open the repository's Actions tab, choose "Hourly IPU update" and select "Enable workflow", or run it with "Run workflow".
+
+**Quick changes from a phone (GitHub app or github.com):** open a file, edit, commit to `main`. The site republishes within a few minutes; the tests run first. If they fail, the Actions tab shows a red cross: fix or undo the change, because the next hourly update publishes the site as it is. Useful files: `docs/data/rule.json` (rule, holidays), `docs/data/announcements.json` (closures; keep the Bernama-only policy), `docs/i18n.ms.js` (Bahasa Melayu wording).
+
+**Emergency stop:** Actions tab → "Hourly IPU update" → "Disable workflow" stops updates (the site stays online with its last data, marked as outdated). To take the site offline: Settings → Pages → unpublish.
 
 ## Credits and notices
 - Readings: Department of Environment Malaysia, APIMS.

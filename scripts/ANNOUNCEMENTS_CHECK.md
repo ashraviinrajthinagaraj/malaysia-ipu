@@ -1,6 +1,7 @@
 # Daily check: official school closure announcements (Bernama only)
 
-This procedure is run by a scheduled task every hour from about 6 am to 7 pm Malaysia time. It keeps
+This procedure is run by a scheduled task every hour from about 6 am to 7 pm Malaysia time,
+from June to November (the haze season; it is paused from December to May). It keeps
 `docs/data/announcements.json` up to date so the site shows official haze
 school closures correctly. Follow it exactly.
 

@@ -450,3 +450,37 @@ test("smoke on the way: forward paths from fire areas and arrival times", () => 
   // a forecast that does not cover now is not used
   assert.equal(L.smokeArrivals(clusters, { grid, times: times.map((t) => t + 600), u, v }, [{ lon: 101.5, lat: 3 }], NOW), null);
 });
+
+test("school calendar: Deepavali 2026 by group, a state holiday and the 2027 session", () => {
+  const no = (day, state) => L.noSchoolReason(day, state, rule);
+  // Deepavali (Sun 8 Nov 2026): Group A has Sunday school, so 8 and 9 Nov are holidays
+  assert.equal(no("2026-11-08", "Kedah").kind, "holiday");
+  assert.equal(no("2026-11-09", "Kelantan").kind, "holiday");
+  assert.equal(no("2026-11-10", "Terengganu"), null);
+  // Group B except Sarawak: replacement Monday and one extra KPM day
+  assert.equal(no("2026-11-09", "Johor").kind, "holiday");
+  assert.equal(no("2026-11-10", "Selangor").kind, "holiday");
+  // Sarawak: Monday only
+  assert.equal(no("2026-11-09", "Sarawak").kind, "holiday");
+  assert.equal(no("2026-11-10", "Sarawak"), null);
+  // Perak state holiday
+  assert.equal(no("2026-11-06", "Perak").kind, "holiday");
+  assert.equal(no("2026-11-06", "Selangor"), null);
+  // year-end holiday runs until the 2027 session starts on Mon 4 Jan 2027
+  assert.equal(no("2027-01-03", "Kedah").kind, "holiday");
+  assert.equal(no("2027-01-04", "Kedah"), null);
+  assert.equal(no("2027-01-04", "Johor"), null);
+  assert.equal(L.schoolGroup("Terengganu", rule), "A");
+  assert.equal(L.schoolGroup("W.P. Kuala Lumpur", rule), "B");
+  assert.equal(L.calendarIncomplete("2027-01-03", rule), false);
+  assert.equal(L.calendarIncomplete("2027-01-04", rule), true);
+});
+
+test("older holiday files with states: \"others\" still work", () => {
+  const old = { weekend: rule.weekend, school_holidays: [
+    { states: ["Kedah", "Kelantan", "Terengganu"], from: "2026-12-04", to: "2026-12-31", name: "A" },
+    { states: "others", from: "2026-12-05", to: "2026-12-31", name: "B" }] };
+  assert.equal(L.noSchoolReason("2026-12-06", "Kedah", old).label, "A");   // Sunday: a school day in Kedah
+  assert.equal(L.noSchoolReason("2026-12-04", "Johor", old), null);
+  assert.equal(L.noSchoolReason("2026-12-07", "Johor", old).label, "B");
+});

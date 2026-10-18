@@ -23,10 +23,10 @@
     "Threshold reached today: the latest reading, or any hourly reading earlier today (Malaysia time), is 200 or more.",
     "If reached: the dashboard says schools in the affected area may be closed tomorrow. PTJK closure takes effect immediately, so a closure may already apply today.",
     "If not reached: the dashboard says the closure threshold has not been reached at the latest available reading. This can change if readings rise later.",
-    "Weekends and year-end school holidays are shown as 'no school' days. Public holidays and state-specific holidays are not included.",
+    "Weekends, school holidays and public holidays from the official calendars (KPM's 2026 academic calendar and the Prime Minister's Department's public holiday lists) are shown as 'no school' days. For 2027, term breaks and KPM's extra festive holidays are not yet included.",
     "No prediction is shown when the reference station has no reading from the last 3 hours."
   ],
-  "who_decides": "Closures are decided and announced by KPM, the state governments and education departments (JPN) and District Education Offices (PPD). This site shows announced closures only as reported by Bernama, checked every hour from 6 am to 7 pm, and otherwise predicts from the IPU rule. Since 10 Oct 2026, State Education Directors announce daily school status based on DOE readings.",
+  "who_decides": "Closures are decided and announced by KPM, the state governments and education departments (JPN) and District Education Offices (PPD). This site shows announced closures only as reported by Bernama, checked every hour from 6 am to 7 pm from June to November, and otherwise predicts from the IPU rule. Since 10 Oct 2026, State Education Directors announce daily school status based on DOE readings.",
   "previous_rules": [
     {
       "from": "2026-10-08",
@@ -56,20 +56,305 @@
   },
   "school_holidays": [
     {
+      "from": "2026-11-06",
+      "to": "2026-11-06",
+      "name": "Birthday of the Sultan of Perak (state public holiday)",
+      "name_ms": "Hari Keputeraan Sultan Perak (cuti umum negeri)",
       "states": [
-        "Kedah",
-        "Kelantan",
-        "Terengganu"
+        "Perak"
       ],
-      "from": "2026-12-04",
-      "to": "2026-12-31",
-      "name": "Year-end school holiday (Cuti Akhir Persekolahan, Group A)"
+      "source": "Jadual Hari Kelepasan Am 2026 (Bahagian Kabinet, JPM)"
     },
     {
-      "states": "others",
+      "from": "2026-11-08",
+      "to": "2026-11-09",
+      "name": "Deepavali, with one extra KPM holiday",
+      "name_ms": "Deepavali, dengan satu hari cuti tambahan KPM",
+      "group": "A",
+      "source": "KPM Kalendar Akademik 2026 (Surat Siaran KPM Bil. 3/2025)"
+    },
+    {
+      "from": "2026-11-09",
+      "to": "2026-11-09",
+      "name": "Deepavali holiday allocated by KPM",
+      "name_ms": "Cuti peruntukan KPM sempena Deepavali",
+      "states": [
+        "Sarawak"
+      ],
+      "source": "KPM Kalendar Akademik 2026 (Surat Siaran KPM Bil. 3/2025)"
+    },
+    {
+      "from": "2026-11-09",
+      "to": "2026-11-10",
+      "name": "Deepavali replacement holiday and one extra KPM holiday",
+      "name_ms": "Cuti ganti Deepavali dan satu hari cuti tambahan KPM",
+      "group": "B",
+      "except": [
+        "Sarawak"
+      ],
+      "source": "KPM Kalendar Akademik 2026 (Surat Siaran KPM Bil. 3/2025)"
+    },
+    {
+      "from": "2026-12-04",
+      "to": "2027-01-03",
+      "name": "Year-end school holiday (Group A)",
+      "name_ms": "Cuti akhir persekolahan (Kumpulan A)",
+      "group": "A",
+      "source": "KPM Kalendar Akademik 2026 (Surat Siaran KPM Bil. 3/2025); Bernama, 2 Oct 2026: 2027 school session starts 4 Jan"
+    },
+    {
       "from": "2026-12-05",
-      "to": "2026-12-31",
-      "name": "Year-end school holiday (Cuti Akhir Persekolahan, Group B)"
+      "to": "2027-01-03",
+      "name": "Year-end school holiday (Group B)",
+      "name_ms": "Cuti akhir persekolahan (Kumpulan B)",
+      "group": "B",
+      "source": "KPM Kalendar Akademik 2026 (Surat Siaran KPM Bil. 3/2025); Bernama, 2 Oct 2026: 2027 school session starts 4 Jan"
+    },
+    {
+      "from": "2027-01-14",
+      "to": "2027-01-14",
+      "name": "Birthday of the Yang di-Pertuan Besar of Negeri Sembilan (state public holiday)",
+      "name_ms": "Hari Keputeraan Yang di-Pertuan Besar Negeri Sembilan (cuti umum negeri)",
+      "states": [
+        "Negeri Sembilan"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-02-01",
+      "to": "2027-02-01",
+      "name": "Federal Territory Day (state public holiday)",
+      "name_ms": "Hari Wilayah Persekutuan (cuti umum negeri)",
+      "states": [
+        "W.P. Kuala Lumpur",
+        "W.P. Putrajaya",
+        "W.P. Labuan"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-02-07",
+      "to": "2027-02-07",
+      "name": "Chinese New Year, second day (public holiday)",
+      "name_ms": "Tahun Baharu Cina, hari kedua (cuti umum)",
+      "group": "A",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-02-08",
+      "to": "2027-02-08",
+      "name": "Replacement holiday: Chinese New Year's second day falls on a Sunday",
+      "name_ms": "Cuti ganti: hari kedua Tahun Baharu Cina jatuh pada hari Ahad",
+      "group": "B",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM); Holidays Act 1951"
+    },
+    {
+      "from": "2027-03-04",
+      "to": "2027-03-04",
+      "name": "Anniversary of the installation of the Sultan of Terengganu (state public holiday)",
+      "name_ms": "Hari Ulang Tahun Pertabalan Sultan Terengganu (cuti umum negeri)",
+      "states": [
+        "Terengganu"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-03-10",
+      "to": "2027-03-10",
+      "name": "Hari Raya Puasa (public holiday)",
+      "name_ms": "Hari Raya Puasa (cuti umum)",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-03-11",
+      "to": "2027-03-11",
+      "name": "Hari Raya Puasa (second day) (public holiday)",
+      "name_ms": "Hari Raya Puasa (hari kedua) (cuti umum)",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-03-23",
+      "to": "2027-03-23",
+      "name": "Birthday of the Sultan of Johor (state public holiday)",
+      "name_ms": "Hari Keputeraan Sultan Johor (cuti umum negeri)",
+      "states": [
+        "Johor"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-03-30",
+      "to": "2027-03-30",
+      "name": "Birthday of the Yang di-Pertua Negeri of Sabah (state public holiday)",
+      "name_ms": "Hari Jadi Yang di-Pertua Negeri Sabah (cuti umum negeri)",
+      "states": [
+        "Sabah"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-04-26",
+      "to": "2027-04-26",
+      "name": "Birthday of the Sultan of Terengganu (state public holiday)",
+      "name_ms": "Hari Keputeraan Sultan Terengganu (cuti umum negeri)",
+      "states": [
+        "Terengganu"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-05-17",
+      "to": "2027-05-17",
+      "name": "Hari Raya Qurban (public holiday)",
+      "name_ms": "Hari Raya Qurban (cuti umum)",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-05-17",
+      "to": "2027-05-17",
+      "name": "Birthday of the Raja of Perlis (state public holiday)",
+      "name_ms": "Hari Ulang Tahun Keputeraan Raja Perlis (cuti umum negeri)",
+      "states": [
+        "Perlis"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-05-18",
+      "to": "2027-05-18",
+      "name": "Hari Raya Qurban (second day) (public holiday)",
+      "name_ms": "Hari Raya Qurban (hari kedua) (cuti umum)",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-05-20",
+      "to": "2027-05-20",
+      "name": "Wesak Day (public holiday)",
+      "name_ms": "Hari Wesak (cuti umum)",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-06-07",
+      "to": "2027-06-07",
+      "name": "Official birthday of the Yang di-Pertuan Agong (public holiday)",
+      "name_ms": "Hari Keputeraan Rasmi Yang di-Pertuan Agong (cuti umum)",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-06-20",
+      "to": "2027-06-20",
+      "name": "Birthday of the Sultan of Kedah (state public holiday)",
+      "name_ms": "Hari Keputeraan Sultan Kedah (cuti umum negeri)",
+      "states": [
+        "Kedah"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-07-22",
+      "to": "2027-07-22",
+      "name": "Sarawak Independence Day (state public holiday)",
+      "name_ms": "Hari Kemerdekaan Sarawak (cuti umum negeri)",
+      "states": [
+        "Sarawak"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-07-30",
+      "to": "2027-07-30",
+      "name": "Birthday of the Sultan of Pahang (state public holiday)",
+      "name_ms": "Hari Keputeraan Sultan Pahang (cuti umum negeri)",
+      "states": [
+        "Pahang"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-08-15",
+      "to": "2027-08-15",
+      "name": "Prophet Muhammad's birthday (public holiday)",
+      "name_ms": "Maulidur Rasul (cuti umum)",
+      "group": "A",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-08-16",
+      "to": "2027-08-16",
+      "name": "Replacement holiday: Prophet Muhammad's birthday falls on a Sunday",
+      "name_ms": "Cuti ganti: Maulidur Rasul jatuh pada hari Ahad",
+      "group": "B",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM); Holidays Act 1951"
+    },
+    {
+      "from": "2027-08-24",
+      "to": "2027-08-24",
+      "name": "Birthday of the Yang di-Pertua Negeri of Melaka (state public holiday)",
+      "name_ms": "Hari Jadi Yang di-Pertua Negeri Melaka (cuti umum negeri)",
+      "states": [
+        "Melaka"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-08-31",
+      "to": "2027-08-31",
+      "name": "National Day (public holiday)",
+      "name_ms": "Hari Kebangsaan (cuti umum)",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-09-16",
+      "to": "2027-09-16",
+      "name": "Malaysia Day (public holiday)",
+      "name_ms": "Hari Malaysia (cuti umum)",
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-09-29",
+      "to": "2027-09-30",
+      "name": "Birthday of the Sultan of Kelantan (state public holiday)",
+      "name_ms": "Hari Keputeraan Sultan Kelantan (cuti umum negeri)",
+      "states": [
+        "Kelantan"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-10-28",
+      "to": "2027-10-28",
+      "name": "Deepavali (public holiday)",
+      "name_ms": "Hari Deepavali (cuti umum)",
+      "except": [
+        "Sarawak"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-11-05",
+      "to": "2027-11-05",
+      "name": "Birthday of the Sultan of Perak (state public holiday)",
+      "name_ms": "Hari Keputeraan Sultan Perak (cuti umum negeri)",
+      "states": [
+        "Perak"
+      ],
+      "source": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)"
+    },
+    {
+      "from": "2027-12-03",
+      "to": "2028-01-02",
+      "name": "Year-end school holiday (Group A)",
+      "name_ms": "Cuti akhir persekolahan (Kumpulan A)",
+      "group": "A",
+      "source": "Bernama, 2 Oct 2026: 2027 school session starts 4 Jan; 2028 session starts 3 Jan"
+    },
+    {
+      "from": "2027-12-04",
+      "to": "2028-01-02",
+      "name": "Year-end school holiday (Group B)",
+      "name_ms": "Cuti akhir persekolahan (Kumpulan B)",
+      "group": "B",
+      "source": "Bernama, 2 Oct 2026: 2027 school session starts 4 Jan; 2028 session starts 3 Jan"
     }
   ],
   "sources": [
@@ -97,6 +382,21 @@
       "title": "Kalendar Akademik 2026 – KPM (Group A / Group B states, year-end holidays)",
       "date": "2025-10",
       "url": "https://www.kabinet.gov.my/storage/2025/10/SS-KPM-Bil.-3-2025-Kalendar-Akademik-2026-1.pdf"
+    },
+    {
+      "title": "Jadual Hari Kelepasan Am Persekutuan dan Negeri 2026 (Bahagian Kabinet, JPM)",
+      "date": "2025-08",
+      "url": "https://www.kabinet.gov.my/storage/2025/08/HKA-2026.pdf"
+    },
+    {
+      "title": "Jadual Hari Kelepasan Am Persekutuan 2027 (Bahagian Kabinet, JPM)",
+      "date": "2026-08",
+      "url": "https://www.kabinet.gov.my/storage/2026/08/HKA_2027.pdf"
+    },
+    {
+      "title": "Sesi Persekolahan Tahun 2027 Bermula 4 Jan (Bernama)",
+      "date": "2026-10-02",
+      "url": "https://www.bernama.com/bm/am/news.php?id=2614792"
     }
   ],
   "name_ms": "Pelan Tindakan Jerebu Kebangsaan (PTJK), seperti yang digunakan untuk sekolah oleh Kementerian Pendidikan Malaysia (KPM)",
@@ -106,8 +406,19 @@
     "Paras penutupan dicapai hari ini: bacaan terkini, atau mana-mana bacaan setiap jam lebih awal hari ini (waktu Malaysia), ialah 200 atau lebih.",
     "Jika dicapai: papan pemuka menyatakan sekolah di kawasan terjejas mungkin ditutup esok. Penutupan PTJK berkuat kuasa serta-merta, jadi penutupan mungkin sudah terpakai hari ini.",
     "Jika tidak dicapai: papan pemuka menyatakan paras penutupan belum dicapai pada bacaan terkini. Ini boleh berubah jika bacaan meningkat kemudian.",
-    "Hujung minggu dan cuti akhir persekolahan ditunjukkan sebagai hari 'tiada sekolah'. Cuti umum dan cuti khusus negeri tidak diambil kira.",
+    "Hujung minggu, cuti sekolah dan cuti umum daripada kalendar rasmi (kalendar akademik KPM 2026 dan senarai hari kelepasan am Jabatan Perdana Menteri) ditunjukkan sebagai hari 'tiada sekolah'. Bagi 2027, cuti penggal dan cuti tambahan perayaan KPM belum dimasukkan.",
     "Tiada jangkaan ditunjukkan apabila stesen rujukan tiada bacaan dari 3 jam lalu."
   ],
-  "who_decides_ms": "Penutupan diputuskan dan diumumkan oleh KPM, kerajaan negeri dan jabatan pendidikan negeri (JPN) serta Pejabat Pendidikan Daerah (PPD). Laman ini menunjukkan penutupan yang diumumkan hanya seperti yang dilaporkan oleh Bernama, disemak setiap jam dari 6 pagi hingga 7 malam, dan selain itu membuat jangkaan daripada peraturan IPU. Sejak 10 Okt 2026, Pengarah Pendidikan Negeri mengumumkan status sekolah setiap hari berdasarkan bacaan JAS."
+  "who_decides_ms": "Penutupan diputuskan dan diumumkan oleh KPM, kerajaan negeri dan jabatan pendidikan negeri (JPN) serta Pejabat Pendidikan Daerah (PPD). Laman ini menunjukkan penutupan yang diumumkan hanya seperti yang dilaporkan oleh Bernama, disemak setiap jam dari 6 pagi hingga 7 malam dari Jun hingga November, dan selain itu membuat jangkaan daripada peraturan IPU. Sejak 10 Okt 2026, Pengarah Pendidikan Negeri mengumumkan status sekolah setiap hari berdasarkan bacaan JAS.",
+  "school_groups": {
+    "A": [
+      "Kedah",
+      "Kelantan",
+      "Terengganu"
+    ],
+    "note": "Group B is every other state and federal territory."
+  },
+  "calendar_complete_until": "2027-01-03",
+  "calendar_note": "From 4 January 2027 the site knows the school session dates, federal public holidays and holidays named after a state, but not the 2027 term breaks, KPM's extra festive holidays or other state holidays, because the official KPM 2027 calendar is a scanned document this site could not read. Those days may be shown as school days.",
+  "calendar_note_ms": "Mulai 4 Januari 2027, laman ini mengetahui tarikh sesi persekolahan, cuti umum persekutuan dan cuti yang dinamakan sempena sesebuah negeri, tetapi tidak cuti penggal 2027, cuti tambahan perayaan KPM atau cuti negeri yang lain, kerana kalendar rasmi KPM 2027 ialah dokumen imbasan yang tidak dapat dibaca oleh laman ini. Hari-hari tersebut mungkin ditunjukkan sebagai hari persekolahan."
 }

@@ -768,7 +768,7 @@
           (started ? i18("closed ") + esc(untilText(c)) : i18("close ") + (c.until_further_notice ? i18("from ") + esc(dayShort(c.from)) + i18(" until further notice") : esc(rangeText(c.from, c.to)))) + "</p>" +
           '<p class="pred-detail">' + esc(loc(c, "covers")) + (c.learning ? " " + esc(loc(c, "learning")) : "") + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
       });
-      html += i18('<p class="small muted">From Bernama reports only, checked every hour from 6 am to 7 pm (last checked ') + esc(checkedText()) + i18("). Confirm with your school or JPN.</p>");
+      html += i18('<p class="small muted">From Bernama reports only, checked every hour from 6 am to 7 pm, June to November (last checked ') + esc(checkedText()) + i18("). Confirm with your school or JPN.</p>");
     }
     var tk = L.mytDateKey(n), recent = ((S.ann && S.ann.closures) || []).filter(function (c) {
       return L.validClosure(c, S.ann.source_policy) && c.to < tk && c.to >= L.addDaysKey(tk, -14);
@@ -779,6 +779,7 @@
       }).join("");
     }
     if (annStale()) html += i18('<p class="note">Announcements have not been checked as often as planned (last check ') + esc(checkedText()) + i18('), so a newer announcement may be missing.</p>');
+    if (annPaused()) html += i18('<p class="note">The Bernama check is paused from December to May, outside the haze season, so announcements made now are not added until June. Confirm with your school or JPN.</p>');
     html += calendarHTML();
     box.innerHTML = html;
     drawAllRR();
@@ -1780,7 +1781,14 @@
     var t = S.ann && L.parseTime(S.ann.checked_at);
     return t ? L.fmtDateTime(t) : i18("never");
   }
+  /* The Bernama check runs only in the months listed in announcements.json (the haze season). */
+  function annPaused() {
+    var months = S.ann && S.ann.check_months;
+    if (!months || !months.length) return false;
+    return months.indexOf(Number(L.mytDateKey(new Date()).slice(5, 7))) < 0;
+  }
   function annStale() {
+    if (annPaused()) return false;
     var t = S.ann && L.parseTime(S.ann.checked_at);
     if (!t) return true;
     // checks run hourly from about 6 am to 7 pm, so a gap overnight is expected
@@ -1852,6 +1860,11 @@
       esc(place.district && place.district !== place.state ? place.district + ", " + place.state : place.state) + i18(" (last checked ") + esc(checkedText()) + ").</p>" + staleNote };
   }
 
+  /* Said when tomorrow is past the dates the site's school calendar fully covers. */
+  function calendarNote(dayKey) {
+    return S.rule && L.calendarIncomplete(dayKey, S.rule) && S.rule.calendar_note ? '<p class="note">' + esc(loc(S.rule, "calendar_note")) + "</p>" : "";
+  }
+
   function predictionHTML(st, stateName, m, place) {
     var n = now();
     if (!S.rule) return i18("<h3>School closure check</h3><p class='muted'>The closure rule file could not be loaded.</p>");
@@ -1880,7 +1893,7 @@
       i18("<dt>Reached ") + S.rule.closure.threshold + i18(" today</dt><dd>") + (p.reachedToday ? i18("Yes") : i18("No")) + "</dd>" +
       i18("<dt>Predicted for ") + esc(L.fmtDayKey(p.tomorrowKey).replace(/ \d{4}$/, "")) + "</dt><dd>" + esc(p.status) + "</dd>" +
       i18("<dt>Outdoor activities</dt><dd>") + (p.outdoorStop ? i18("Should stop now (IPU above ") + S.rule.outdoor.threshold + ")" : i18("No restriction at this reading")) + "</dd>" +
-      "</dl>";
+      "</dl>" + calendarNote(p.tomorrowKey);
     if (m && m.all && !p.reachedToday) {
       m.all.filter(function (x) {
         if (x.station === st || x.km > 30 || !L.stationCurrent(x.station, n)) return false;
@@ -1946,6 +1959,7 @@
       p += i18('<dl class="facts"><dt>Reached ') + S.rule.closure.threshold + i18(" today</dt><dd>") + (sum.reached.length ? i18("Yes, at ") + sum.reached.length + i18(" station") + (sum.reached.length > 1 ? i18("s") : "") : i18("No")) + "</dd>" +
         i18("<dt>Above ") + S.rule.outdoor.threshold + i18(" now</dt><dd>") + outdoor + i18(" of ") + sum.current.length + i18(" stations (outdoor activities stop in those areas)</dd></dl>");
     }
+    p += calendarNote(sum.tomorrowKey);
     p += disclaimer(off.any);
     p += i18('<div class="near"><h3>Stations in ') + esc(sel.state) + i18('</h3><div class="table-wrap"><table class="mini"><thead><tr><th>Station</th><th class="num">IPU</th><th class="hide-sm">Category</th><th>Time</th></tr></thead><tbody>') +
       sum.stations.slice().sort(function (a, b) {
@@ -2669,7 +2683,7 @@
       i18("<p>Sources:</p><ul>") + r.sources.map(function (s) { return '<li><a href="' + esc(s.url) + '" rel="noopener">' + esc(s.title) + "</a> (" + esc(s.date) + ")</li>"; }).join("") + "</ul></div></details>" +
       i18("<details><summary>Official closure announcements</summary><div>") +
       i18("<p>When a state or KPM announces that schools are closed, the closure check shows it as <b>officially closed</b> for the area and dates announced, instead of the IPU prediction. ") +
-      i18("Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama every hour from 6 am to 7 pm and adds new closures and extensions.</p>") +
+      i18("Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama every hour from 6 am to 7 pm, June to November (the haze season), and adds new closures and extensions. From December to May the check is paused.</p>") +
       i18("<p>The site works out which state and district a school or place is in from the official district boundaries published by data.gov.my, so a closure for a state or district is applied to every place inside it. ") +
       i18("Announcements reported between 6 am and 7 pm usually appear within an hour; ones reported later in the evening appear after the 6 am check. Always confirm with your school or the State Education Department (JPN).</p></div></details>") +
       i18("<details><summary>Rule vs reality</summary><div>") +
@@ -2682,8 +2696,8 @@
       i18("<p>Fire hotspots are NASA FIRMS satellite detections (VIIRS) from the last 24 hours; detections older than 36 hours are never shown. Wind is the current 10 m wind from the Open-Meteo weather model. Together they show where fires are and which way the wind blows, not the actual path of the smoke.</p></div></details>") +
       i18("<details><summary>Limitations</summary><div><ul>") +
       i18("<li>Malaysia has about 68 DOE stations. Many schools are far from one, and a single station cannot show local differences.</li>") +
-      i18("<li>The dashboard cannot see official announcements. A school may be closed or open for reasons this rule does not capture, such as a state directive.</li>") +
-      i18("<li>Weekends and the year-end school holidays are included; public holidays and state holidays are not.</li>") +
+      i18("<li>Official closures are added from Bernama reports only, checked every hour from 6 am to 7 pm from June to November. A school may also be closed or open for reasons this site cannot see, such as a district or school decision that Bernama did not report.</li>") +
+      i18("<li>Weekends, school holidays and public holidays come from the official calendars. For 2027, term breaks and KPM's extra festive holidays are not included yet.</li>") +
       i18("<li>The APIMS data endpoints are not a documented public API. If DOE changes them, updates stop and this page marks its readings as outdated.</li>") +
       i18("<li>Updates run on GitHub Actions at minute ") + UPDATE_MINUTE + i18(" of every hour; GitHub sometimes starts them a few minutes late.</li>") +
       i18("<li>DOSM history is national monthly averages of pollutant concentrations, not IPU and not per station.</li>") +

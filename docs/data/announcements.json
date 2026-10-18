@@ -6,6 +6,15 @@
     ],
     "summary": "Official school closure announcements are added only from Bernama reports. Every entry links to the Bernama article it comes from."
   },
+  "check_months": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "check_note": "Checked every hour from 6 am to 7 pm, June to November (the haze season). From December to May the check is paused.",
   "checked_at": "2026-10-18T16:05:00+08:00",
   "updated_at": "2026-10-18T08:45:00+08:00",
   "closures": [

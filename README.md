@@ -115,6 +115,17 @@ These two features are kept apart from the official data and are labelled on the
 - **School-day dose (estimate):** from the official PM2.5 24-hour average at the reference station, and children's breathing rates from the US EPA Exposure Factors Handbook (chapter 6, table 6-2), compared with the WHO 2021 24-hour guideline (15 µg/m³).
 - **Hear the haze:** under the Accessibility button (top right). When switched on, each 24-hour chart gets a Listen button that plays the readings as tones. The setting is remembered on that device.
 
+## Air right now, sharing and the lobby screen
+
+- **Air right now:** the official PM2.5 for the latest hour next to the 24-hour average the IPU is based on, both from the DOE map service. When DOE's map lags its hourly table, the PM2.5 values keep their own hour and the card says so.
+- **Share:** WhatsApp text, copy, or a 1080 × 1350 image card drawn in the current theme. Official closures are labelled as Bernama-reported; predictions as predictions.
+- **Lobby screen:** a full-screen view of one place for a school or office screen (the link gets `&screen=1`, so it can be bookmarked). It refreshes itself and keeps the screen awake where the browser allows.
+
+## Across the border and the rule simulator
+
+- **Across the border:** neighbouring districts whose school status differs for the same day: an official closure (Bernama) on one side only, or, when neither side has one, the closure level reached at one side's reference station only (a prediction). Neighbours come from `docs/data/borders.json`, computed once from the district boundaries by `scripts/build_borders.py` (rerun it only if `boundaries.json` changes).
+- **What if the rule were different?** applies another rule (the earlier 8–14 Oct rule, 150, or any level and number of days) to the same official readings, for today and the last 7 days, and can mark the stations on the map. It uses `docs/data/daily.json`: the highest hourly IPU per station per day, kept for 8 days by `fetch_apims.py`, which fills older days once from DOE's hourly table for that day. It is a "what if", not a prediction, and counts stations, not schools.
+
 ## Files
 
 ```
@@ -127,10 +138,13 @@ docs/                    the website (published to GitHub Pages)
   data/rule.json         closure rule, weekends, holidays, sources
   data/schools.json      KPM school list, once added
   data/dosm_monthly.json DOSM history (written by the job)
+  data/daily.json        highest IPU per station per day, last 8 days (written by the job)
+  data/borders.json      neighbouring districts (from scripts/build_borders.py)
 scripts/
   fetch_apims.py         reads APIMS; keeps old data and marks it failed if DOE is unreachable
   fetch_dosm.py          downloads DOSM monthly data (weekly)
   build_schools.py       converts the KPM school list (.xlsx/.csv)
+  build_borders.py       finds neighbouring districts in boundaries.json (run once)
 data_sources/schools/    put the KPM school list here
 tests/                   python3 -m unittest discover -s tests ; node --test tests/logic.test.js
 .github/workflows/update.yml   the hourly job

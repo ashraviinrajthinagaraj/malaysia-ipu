@@ -51,6 +51,10 @@ MAP_FIELDS = ("STATION_ID,STATION_LOCATION,PLACE,STATE_NAME,STATE_ID,REGION_NAME
 USER_AGENT = ("Mozilla/5.0 (compatible; MalaysiaIPUDashboard/1.0; "
               "hourly public dashboard, reads APIMS once per hour)")
 KEEP_HOURS = 48          # hourly values kept per station (for "today" and the 24 h chart)
+DAILY = DATA_DIR / "daily.json"
+DAILY_DAYS = 8           # days of daily highs kept per station (for multi-day rules)
+BACKFILL_DAYS = 6        # DOE's hourly table keeps about a week; older days are not asked for
+BACKFILL_MAX = int(os.environ.get("APIMS_BACKFILL_MAX", "40"))   # extra table requests per run
 RETRY_WAIT = float(os.environ.get("APIMS_RETRY_WAIT", "4"))
 SCHEMA = 1
 
@@ -404,6 +408,92 @@ def observation_time(stations):
     return max(h for h, c in common if c == best)
 
 
+# ------------------------------------------------------------------ daily highs
+
+def day_hours(pairs):
+    """[[hour_key, api], ...] -> {date: [highest, hour_mask]} (mask bit h = hour h had a reading)."""
+    out = {}
+    for k, v in pairs:
+        if v is None:
+            continue
+        day, hour = k[:10], int(k[11:13])
+        cur = out.setdefault(day, [v, 0])
+        cur[0] = max(cur[0], v)
+        cur[1] |= 1 << hour
+    return out
+
+
+def merge_day(d, day, entry):
+    old = d.get(day)
+    d[day] = [max(old[0], entry[0]), old[1] | entry[1]] if old else list(entry)
+
+
+def update_daily(stations, now):
+    """Highest hourly IPU per station for each Malaysia date (the last DAILY_DAYS days),
+    from DOE's hourly table. Days the hourly file no longer covers are read once
+    from DOE's table for that day. Writes docs/data/daily.json."""
+    try:
+        prev = json.loads(DAILY.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prev = {}
+    today = now.date()
+    keep = sorted((today - timedelta(days=i)).isoformat() for i in range(DAILY_DAYS))
+    days = {sid: {k: v for k, v in d.items() if k in keep}
+            for sid, d in (prev.get("stations") or {}).items()}
+    tried = {k: v for k, v in (prev.get("filled") or {}).items() if k in keep}
+
+    for st in stations:
+        d = days.setdefault(st["id"], {})
+        for day, entry in day_hours(st.get("hourly") or []).items():
+            if day in keep:
+                merge_day(d, day, entry)
+
+    # fill older days once per state from DOE's table for that day
+    by_state = {}
+    for st in stations:
+        if st.get("state_id") is not None and st.get("api") is not None:
+            by_state.setdefault(str(st["state_id"]), []).append(st["id"])
+    requests = 0
+    for back in range(2, BACKFILL_DAYS + 1):
+        day = (today - timedelta(days=back)).isoformat()
+        for state_id in sorted(by_state, key=state_sort_key):
+            if requests >= BACKFILL_MAX or state_id in tried.get(day, []):
+                continue
+            ids = by_state[state_id]
+            complete = all(bin((days.get(i, {}).get(day) or [0, 0])[1]).count("1") >= 20 for i in ids)
+            if complete:
+                continue
+            requests += 1
+            tried.setdefault(day, []).append(state_id)
+            end = datetime.fromisoformat(day + "T23:00:00").replace(tzinfo=MYT)
+            try:
+                table = fetch_table(state_id, end)
+            except RuntimeError as err:
+                log(f"  daily backfill {day} state {state_id} failed: {err}")
+                tried[day].remove(state_id)       # try again next hour
+                continue
+            for sid, tab in table.items():
+                pairs = [[k, v] for k, v in tab["hours"].items() if k[:10] == day]
+                for dday, entry in day_hours(pairs).items():
+                    merge_day(days.setdefault(sid, {}), dday, entry)
+    if requests:
+        log(f"Daily highs: {requests} extra table requests for older days")
+
+    out = {
+        "schema": 1,
+        "updated": iso(now),
+        "days": keep,
+        "note": "Highest hourly IPU per station per Malaysia date, from DOE APIMS hourly tables. "
+                "Each entry is [highest, hour mask]; bit h of the mask is set when hour h had a reading.",
+        "stations": {sid: dict(sorted(d.items())) for sid, d in sorted(days.items()) if d},
+        "filled": tried,
+    }
+    tmp = DAILY.with_suffix(".tmp")
+    tmp.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    tmp.replace(DAILY)
+    return out
+
+
 def main():
     now = now_myt()
     prev = load_previous()
@@ -449,6 +539,11 @@ def main():
     tmp.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
                    encoding="utf-8")
     tmp.replace(LATEST)
+    if built is not None:
+        try:
+            update_daily(out["stations"], now)
+        except Exception as err:          # never let the extra file break the main update
+            log(f"Daily highs not updated: {err}")
     log(f"Status: {out['status']}. Stations: {out['counts']['stations']} "
         f"({out['counts']['with_reading']} with a reading). As of: {out['observation_time']}")
     return code

@@ -28,6 +28,7 @@ class Fake:
     map_ok = True
     table_ok = True
     table_states_failing = set()
+    table_requests = []
 
 
 def table_rows(state_id, end):
@@ -72,6 +73,7 @@ class Handler(BaseHTTPRequestHandler):
             if not Fake.table_ok or state in Fake.table_states_failing:
                 return self.send_error(503)
             end = datetime.strptime(q["datetime"][0], "%Y-%m-%d %H:%M:%S")
+            Fake.table_requests.append((state, q["datetime"][0]))
             return self.send_json({"api_table_hourly": table_rows(state, end)})
         self.send_error(404)
 
@@ -90,6 +92,7 @@ class FetchTests(unittest.TestCase):
     def setUp(self):
         Fake.map_ok = Fake.table_ok = True
         Fake.table_states_failing = set()
+        Fake.table_requests = []
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
 
@@ -130,6 +133,27 @@ class FetchTests(unittest.TestCase):
         hours = dict((k, v) for k, v in st["CA23N"]["hourly"])
         self.assertEqual(hours["2026-10-17T09:00"], 201)
         self.assertEqual(len(st["CA23N"]["hourly"]), 25)
+
+    def test_daily_highs_are_kept_and_older_days_filled_once(self):
+        self.run_fetch()
+        daily = json.loads((self.dir / "daily.json").read_text())
+        self.assertEqual(daily["days"][-1], "2026-10-17")
+        self.assertEqual(len(daily["days"]), 8)
+        d = daily["stations"]["CA23N"]
+        # today so far: 201 at 09:00 is the highest
+        self.assertEqual(d["2026-10-17"][0], 201)
+        # an older day read from DOE's table for that day: all 24 hours
+        self.assertEqual(d["2026-10-13"][0], 201)
+        self.assertEqual(bin(d["2026-10-13"][1]).count("1"), 24)
+        self.assertNotIn("2026-10-10", d)                   # older than DOE keeps: not asked for
+        first = [r for r in Fake.table_requests if r[1].endswith("23:00:00")]
+        self.assertTrue(any(r[1] == "2026-10-12 23:00:00" for r in first))
+        # the next hour asks only for the normal tables
+        Fake.table_requests = []
+        self.run_fetch(now="2026-10-17T15:20:00")
+        self.assertFalse(any(r[1].endswith("23:00:00") for r in Fake.table_requests))
+        daily = json.loads((self.dir / "daily.json").read_text())
+        self.assertEqual(daily["stations"]["CA23N"]["2026-10-13"][0], 201)
 
     def test_negative_value_is_no_reading(self):
         _, data, _ = self.run_fetch()

@@ -781,6 +781,159 @@
     return { freq: 220 * Math.pow(2, v / 150), wave: v >= 200 ? "square" : v > 100 ? "triangle" : "sine" };
   }
 
+  // ------------------------------------------------------------ rule simulator (a "what if", never a prediction)
+
+  function popcount(n) { var c = 0; n = n >>> 0; while (n) { c += n & 1; n >>>= 1; } return c; }
+
+  /* Highest reading per Malaysia date for one station: {date: {max, hours}}, from daily.json
+     (DOE hourly tables) plus the station's own hourly values and latest reading. */
+  function dailyHighs(st, daily) {
+    var acc = {}, d = daily && daily.stations ? daily.stations[st.id] || {} : {};
+    function add(day, v, mask) {
+      if (v === null || v === undefined) return;
+      var a = acc[day] || (acc[day] = { max: v, mask: 0 });
+      a.max = Math.max(a.max, v); a.mask = (a.mask | mask) >>> 0;
+    }
+    Object.keys(d).forEach(function (k) { add(k, d[k][0], d[k][1]); });
+    (st.hourly || []).forEach(function (p) { add(String(p[0]).slice(0, 10), p[1], 1 << parseInt(String(p[0]).slice(11, 13), 10)); });
+    var t = parseTime(st.observed);
+    if (t && st.api !== null && st.api !== undefined) {
+      var hk = hourKeyOf(t);
+      add(hk.slice(0, 10), st.api, 1 << parseInt(hk.slice(11, 13), 10));
+    }
+    var out = {};
+    Object.keys(acc).forEach(function (k) { out[k] = { max: acc[k].max, hours: popcount(acc[k].mask) }; });
+    return out;
+  }
+
+  /* true / false, or null when there are too few readings that day to tell. */
+  function dayMeets(h, cond, isToday) {
+    if (!h) return isToday ? false : null;
+    if (meets(h.max, cond)) return true;
+    if (isToday) return false;
+    return h.hours >= 18 ? false : null;
+  }
+
+  /* Would `rule` trigger a closure from readings on day `key`?
+     rule: {threshold, comparison, days, alt?: {threshold, comparison, days}}; days = consecutive days needed. */
+  function ruleTriggers(highs, key, rule, todayKey) {
+    function one(r) {
+      var unknown = false;
+      for (var i = 0; i < (r.days || 1); i++) {
+        var k = addDaysKey(key, -i), m = dayMeets(highs[k], r, k === todayKey);
+        if (m === false) return false;
+        if (m === null) unknown = true;
+      }
+      return unknown ? null : true;
+    }
+    var a = one(rule);
+    if (a === true || !rule.alt) return a;
+    var b = one(rule.alt);
+    if (b === true) return true;
+    return a === null || b === null ? null : false;
+  }
+
+  var SIM_RULES = {
+    ptjk: { key: "ptjk", threshold: 200, comparison: ">=", days: 1 },
+    interim: { key: "interim", threshold: 180, comparison: ">", days: 1, alt: { threshold: 150, comparison: ">", days: 3 } },
+    t150: { key: "t150", threshold: 150, comparison: ">=", days: 1 }
+  };
+
+  /* Compare a rule with the current one over the last `ndays` days (today included).
+     Today counts only stations with a current reading. Never a prediction of what will happen. */
+  function simulateRule(stations, daily, rule, base, now, ndays) {
+    ndays = ndays || 7;
+    var todayKey = mytDateKey(now), days = [];
+    for (var i = ndays - 1; i >= 0; i--) {
+      days.push({ key: addDaysKey(todayKey, -i), sim: 0, base: 0, unknown: 0, simStates: {}, baseStates: {} });
+    }
+    var today = [];
+    stations.forEach(function (st) {
+      if (typeof st.lat !== "number") return;
+      var highs = dailyHighs(st, daily), cur = stationCurrent(st, now);
+      days.forEach(function (d) {
+        var isToday = d.key === todayKey;
+        var sv = isToday && !cur ? null : ruleTriggers(highs, d.key, rule, todayKey);
+        var bv = isToday && !cur ? null : ruleTriggers(highs, d.key, base, todayKey);
+        if (sv === true) { d.sim++; d.simStates[stateKey(st.state)] = st.state; }
+        if (bv === true) { d.base++; d.baseStates[stateKey(st.state)] = st.state; }
+        if (sv === null) d.unknown++;
+        if (isToday) today.push({ station: st, sim: sv, base: bv, high: highs[todayKey] ? highs[todayKey].max : null });
+      });
+    });
+    days.forEach(function (d) {
+      d.simStates = Object.keys(d.simStates).map(function (k) { return d.simStates[k]; }).sort();
+      d.baseStates = Object.keys(d.baseStates).map(function (k) { return d.baseStates[k]; }).sort();
+    });
+    var byHigh = function (a, b) { return (b.high || 0) - (a.high || 0); };
+    return {
+      days: days, todayKey: todayKey, today: today,
+      added: today.filter(function (r) { return r.sim === true && r.base !== true; }).sort(byHigh),
+      removed: today.filter(function (r) { return r.base === true && r.sim !== true; }).sort(byHigh),
+      both: today.filter(function (r) { return r.base === true && r.sim === true; }).sort(byHigh)
+    };
+  }
+
+  // ------------------------------------------------------------ across the border
+
+  /* Neighbouring districts whose school status differs on the next day both have school:
+     an official closure (Bernama-reported) on one side only, or (for tomorrow, with no
+     official closure either side) the IPU rule reached on one side's reference station only. */
+  function borderSplits(borders, stations, ann, rule, now) {
+    if (!borders || !borders.pairs || !rule) return [];
+    var todayKey = mytDateKey(now), tomorrowKey = addDaysKey(todayKey, 1), refs = {};
+    var policy = ann && ann.source_policy;
+    var closures = ((ann && ann.closures) || []).filter(function (c) { return validClosure(c, policy); });
+    function ref(k) {
+      if (!(k in refs)) {
+        var d = borders.districts[k], m = matchStations(d.p[1], d.p[0], stations, now);
+        refs[k] = m && m.reference ? m.reference : null;
+      }
+      return refs[k];
+    }
+    function status(k, day) {
+      var d = borders.districts[k], place = { state: d.s, district: d.d };
+      var c = closures.filter(function (x) { return x.from <= day && day <= x.to && closureCovers(x, place); })[0];
+      if (c) return { kind: "official", closure: c };
+      if (day !== tomorrowKey) return { kind: "none" };
+      var r = ref(k);
+      if (!r) return { kind: "unknown" };
+      var p = predict(r.station, rule, now, d.s);
+      if (!p.available) return { kind: "unknown" };
+      return { kind: p.reachedToday ? "may_close" : "not_reached", p: p };
+    }
+    var out = [];
+    borders.pairs.forEach(function (pr) {
+      var a = borders.districts[pr[0]], b = borders.districts[pr[1]];
+      var day = tomorrowKey, tries = 0;
+      while (tries < 6 && (noSchoolReason(day, a.s, rule) || noSchoolReason(day, b.s, rule))) { day = addDaysKey(day, 1); tries++; }
+      if (tries >= 6) return;
+      var sa = status(pr[0], day), sb = status(pr[1], day), type = null, closed = null;
+      if (sa.kind === "official" && sb.kind !== "official") { type = "official"; closed = 0; }
+      else if (sb.kind === "official" && sa.kind !== "official") { type = "official"; closed = 1; }
+      else if (sa.kind === "may_close" && sb.kind === "not_reached") { type = "rule"; closed = 0; }
+      else if (sb.kind === "may_close" && sa.kind === "not_reached") { type = "rule"; closed = 1; }
+      if (!type) return;
+      var ci = closed === 0 ? pr[0] : pr[1], oi = closed === 0 ? pr[1] : pr[0];
+      var rc = ref(ci), ro = ref(oi);
+      var at = matchStations(pr[3], pr[2], stations, now);
+      out.push({
+        type: type, day: day, km: pr[4], point: [pr[2], pr[3]],
+        closed: { i: ci, state: borders.districts[ci].s, district: borders.districts[ci].d, status: closed === 0 ? sa : sb, ref: rc },
+        open: { i: oi, state: borders.districts[oi].s, district: borders.districts[oi].d, status: closed === 0 ? sb : sa, ref: ro },
+        border: at && at.reference ? at.reference : null,
+        crossState: !sameState(a.s, b.s),
+        reversed: !!(rc && ro && rc.station.api < ro.station.api)
+      });
+    });
+    out.sort(function (x, y) {
+      if (x.type !== y.type) return x.type === "official" ? -1 : 1;
+      if (x.reversed !== y.reversed) return x.reversed ? -1 : 1;
+      return y.km - x.km;
+    });
+    return out;
+  }
+
   var api = {
     TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, schoolDayDose: schoolDayDose, DOSE: DOSE,
     risingFastest: risingFastest, unusualReadings: unusualReadings, toneFor: toneFor, hourKeyOf: hourKeyOf, locate: locate, validClosure: validClosure,
@@ -792,7 +945,8 @@
     haversineKm: haversineKm, byDistance: byDistance, matchStations: matchStations, noSchoolReason: noSchoolReason,
     predict: predict, stateSummary: stateSummary, norm: norm, searchLocal: searchLocal, nationalSummary: nationalSummary,
     stateKey: stateKey, sameState: sameState, tidy: tidy,
-    todaysReadings: todaysReadings, meets: meets
+    todaysReadings: todaysReadings, meets: meets,
+    dailyHighs: dailyHighs, ruleTriggers: ruleTriggers, SIM_RULES: SIM_RULES, simulateRule: simulateRule, borderSplits: borderSplits
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.IPU = api;

@@ -353,3 +353,70 @@ test("PM2.5 values keep their own hour and are hidden when old", () => {
   assert.equal(L.pm25Time({ ...base, pm25_24h: 80, pm25_at: "2026-10-17T10:00:00+08:00" }, NOW), null);
   assert.equal(L.pm25Time({ ...base, pm25_24h: null, pm25_at: "2026-10-17T14:00:00+08:00" }, NOW), null);
 });
+
+test("rule simulator: one-day and multi-day rules from daily highs", () => {
+  // daily highs: 16 Oct 160 (all hours), 15 Oct 155 (all hours), 14 Oct only 4 hours seen
+  const all = (1 << 24) - 1;
+  const daily = { stations: { A: { "2026-10-15": [155, all], "2026-10-16": [160, all], "2026-10-14": [120, 15] } } };
+  const a = st("A", "A", "Johor", 1.5, 103.7, 170, "2026-10-17T14:00:00+08:00", hours(DAY, 0, 14, () => 170));
+  const b = st("B", "B", "Melaka", 2.2, 102.2, 120, "2026-10-17T14:00:00+08:00", hours(DAY, 0, 14, (h) => (h === 9 ? 205 : 120)));
+  const base = { key: "ptjk", threshold: 200, comparison: ">=", days: 1 };
+  const res = L.simulateRule([a, b], daily, L.SIM_RULES.interim, base, NOW, 7);
+  const today = res.days[res.days.length - 1];
+  assert.equal(res.todayKey, DAY);
+  // A: over 150 on 15, 16 and 17 Oct -> met under the earlier rule, not under the current rule
+  assert.deepEqual(res.added.map((r) => r.station.id), ["A"]);
+  // B: 205 at 09:00 today -> met under both (over 180)
+  assert.deepEqual(res.both.map((r) => r.station.id), ["B"]);
+  assert.equal(today.sim, 2); assert.equal(today.base, 1);
+  assert.deepEqual(today.simStates, ["Johor", "Melaka"]);
+  // 15 Oct for A: the day before (14 Oct) has too few hours to tell for the 3-day part
+  const d15 = res.days.find((d) => d.key === "2026-10-15");
+  assert.ok(d15.unknown >= 1);
+  // a laxer rule removes B
+  const lax = L.simulateRule([a, b], daily, { key: "custom", threshold: 250, comparison: ">=", days: 1 }, base, NOW, 7);
+  assert.deepEqual(lax.removed.map((r) => r.station.id), ["B"]);
+});
+
+test("rule simulator ignores today for stations without a current reading", () => {
+  const old = st("C", "C", "Johor", 1.5, 103.7, 230, "2026-10-17T08:00:00+08:00", hours(DAY, 0, 8, () => 230));
+  const res = L.simulateRule([old], null, L.SIM_RULES.t150, L.SIM_RULES.ptjk, NOW, 3);
+  const today = res.days[res.days.length - 1];
+  assert.equal(today.sim, 0);
+  assert.equal(today.unknown, 1);
+});
+
+test("border splits: official closure on one side only, and the IPU rule on one side only", () => {
+  const borders = {
+    districts: [{ s: "Johor", d: "Tangkak", p: [102.6, 2.3] }, { s: "Melaka", d: "Jasin", p: [102.25, 2.3] },
+                { s: "Perak", d: "Kinta", p: [101.1, 4.6] }, { s: "Perak", d: "Kampar", p: [101.15, 4.3] }],
+    pairs: [[0, 1, 102.5, 2.2, 59], [2, 3, 101.12, 4.45, 30]]
+  };
+  const stations = [
+    st("T", "Tangkak", "Johor", 2.27, 102.55, 150, "2026-10-17T14:00:00+08:00"),
+    st("M", "Bukit Rambai", "Melaka", 2.26, 102.17, 170, "2026-10-17T14:00:00+08:00"),
+    st("K", "Ipoh", "Perak", 4.6, 101.08, 120, "2026-10-17T14:00:00+08:00", hours(DAY, 0, 14, (h) => (h === 10 ? 210 : 120))),
+    st("P", "Kampar", "Perak", 4.3, 101.15, 90, "2026-10-17T14:00:00+08:00", hours(DAY, 0, 14, () => 90))
+  ];
+  const ann = { source_policy: { allowed_domains: ["bernama.com"] }, closures: [{
+    id: "johor-test", area: { states: ["Johor"] }, from: "2026-10-19", to: "2026-10-23",
+    sources: [{ title: "t", url: "https://www.bernama.com/en/news.php?id=1", published: "2026-10-17T22:00:00+08:00" }] }] };
+  // Saturday 17 Oct: Sunday is no school in Johor/Melaka/Perak, so the next shared school day is Monday
+  const out = L.borderSplits(borders, stations, ann, rule, NOW);
+  const off = out.find((x) => x.type === "official");
+  assert.equal(off.day, "2026-10-19");
+  assert.equal(off.closed.district, "Tangkak");
+  assert.equal(off.open.district, "Jasin");
+  assert.equal(off.reversed, true);              // the open side's station reads higher
+  // Perak pair: Monday is not tomorrow, so no prediction is used and there is no rule split
+  assert.equal(out.filter((x) => x.type === "rule").length, 0);
+  // on a Sunday, tomorrow (Monday) is a school day: the rule split appears
+  const sun = new Date("2026-10-18T14:25:00+08:00");
+  const s2 = stations.map((x) => ({ ...x, observed: "2026-10-18T14:00:00+08:00",
+    hourly: (x.hourly || []).map((p) => ["2026-10-18" + p[0].slice(10), p[1]]) }));
+  const out2 = L.borderSplits(borders, s2, ann, rule, sun);
+  const r = out2.find((x) => x.type === "rule");
+  assert.equal(r.closed.district, "Kinta");
+  assert.equal(r.open.district, "Kampar");
+  assert.equal(out2[0].type, "official");        // official splits come first
+});

@@ -36,11 +36,11 @@
   var FIRE_MAX_AGE_MIN = 36 * 60;
   var REDUCE = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var S = { data: null, rule: null, dosm: null, forecast: null, sources: null, ann: null, bounds: null, rr: null, unusual: {}, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
+  var S = { data: null, rule: null, daily: null, borders: null, splits: [], bordersAll: false, simRes: null, dosm: null, forecast: null, sources: null, ann: null, bounds: null, rr: null, unusual: {}, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
             sel: null, lastPlaceQuery: 0, firstPaint: true };
   var M = { map: null, styleReady: false, introDone: false, markers: {}, pin: null, km: null,
             fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5, sourcesOn: false,
-            dayMarkers: [], zones: null, closedLabels: [] };
+            dayMarkers: [], zones: null, closedLabels: [], pair: null };
   var W = { canvas: null, ctx: null, parts: [], raf: 0, running: false, dpr: 1 };
 
   function $(id) { return document.getElementById(id); }
@@ -272,6 +272,15 @@
         paint: { "line-color": T().zoneLine, "line-width": ["case", ["get", "mine"], 2.4, 1], "line-opacity": ["case", ["get", "mine"], 0.9, 0.35],
                  "line-dasharray": [2, 2] } }, "haze");
     }
+    if (!map.getSource("pair")) map.addSource("pair", { type: "geojson", data: M.pair || empty });
+    if (!map.getLayer("pair-fill")) {
+      map.addLayer({ id: "pair-fill", type: "fill", source: "pair",
+        paint: { "fill-color": ["match", ["get", "side"], "shut", T().closedLine, T().zoneLine], "fill-opacity": 0.1 } }, "haze");
+    }
+    if (!map.getLayer("pair-line")) {
+      map.addLayer({ id: "pair-line", type: "line", source: "pair",
+        paint: { "line-color": ["match", ["get", "side"], "shut", T().closedLine, T().zoneLine], "line-width": 2.6, "line-opacity": 0.95 } }, "haze");
+    }
     if (!map.getSource("trace")) map.addSource("trace", { type: "geojson", data: traceGeo() });
     if (!map.getLayer("trace-case")) {
       map.addLayer({ id: "trace-case", type: "line", source: "trace", layout: { "line-cap": "round", "line-join": "round" },
@@ -347,6 +356,7 @@
     });
     if (M.styleReady && M.map.getSource("stations")) M.map.getSource("stations").setData(stationsGeo());
     markRef(M.refId);
+    markSim();
   }
 
   function markRef(id) {
@@ -418,6 +428,9 @@
               (M.traceShown ? '<span><i class="wind-key" style="background:' + T().trace + ';height:3px"></i>Air path to the selected place (model)</span>'
                             : '<span><i class="wind-key" style="background:' + T().wind + '"></i>Surface wind (model)</span>');
     }
+    if (SIM.onMap) html += '<span><i class="sim-key"></i>Meets the simulated rule today</span>';
+    if (M.pair) html += '<span><i class="wind-key" style="background:' + T().closedLine + ';height:3px"></i>' + (M.pairType === "official" ? "Officially closed side" : "Side where the closure level was reached") + '</span>' +
+      '<span><i class="wind-key" style="background:' + T().zoneLine + ';height:3px"></i>Other side</span>';
     $("map-legend").innerHTML = html;
   }
 
@@ -1351,6 +1364,7 @@
   function select(sel, opts) {
     opts = opts || {};
     if ($("share-panel")) $("share-panel").hidden = true;
+    clearSplit();
     S.sel = sel;
     if (!opts.keepHash) setHash(sel);
     $("results").innerHTML = "";
@@ -1363,6 +1377,7 @@
 
   function clearSelection() {
     S.sel = null; setHash(null);
+    clearSplit();
     renderSelection(false);
     showPlace(null); markRef(null); updateZones(); updateTraceDisplay();
     if (M.sourcesOn) flyTo({ bounds: isMobile() ? [[96.5, -4.5], [118.5, 7.5]] : REGION_BOUNDS, maxZoom: 6, padding: isMobile() ? { top: 56, bottom: 64, left: 6, right: 6 } : null });
@@ -1725,6 +1740,224 @@
       var pts = sum.stations.filter(function (s) { return typeof s.lat === "number"; }).map(function (s) { return [s.lon, s.lat]; });
       if (pts.length) flyTo({ bounds: boundsOf(pts), maxZoom: 9.5 });
     }
+  }
+
+  // ================================================================ across the border
+
+  function bxSide(side, day) {
+    var st = side.status, tk = L.addDaysKey(L.mytDateKey(now()), 1);
+    if (st.kind === "official") {
+      var c = st.closure;
+      return '<span class="off-chip">Official</span><b>Schools closed</b><span class="bx-note">' + esc(c.until_further_notice ? "until further notice" : rangeText(c.from, c.to)) + "</span>";
+    }
+    if (st.kind === "may_close") return '<span class="pred-chip">Prediction</span><b>May close</b><span class="bx-note">its station reached the closure level today</span>';
+    if (st.kind === "not_reached" && day === tk) return "<b>Open</b><span class=\"bx-note\">no closure announced; closure level not reached</span>";
+    return "<b>Open</b><span class=\"bx-note\">no closure announced</span>";
+  }
+
+  function stnTxt(r) { return r ? esc(r.station.name) + " (IPU <b>" + esc(r.station.api) + "</b>)" : "no station with a current reading"; }
+
+  function bxItem(x, i) {
+    var c = x.closed.ref, o = x.open.ref, why;
+    if (c && o && c.station.id === o.station.id) {
+      why = "Both districts' nearest DOE station is " + stnTxt(c) + ", yet the status differs.";
+    } else if (x.reversed) {
+      why = "The open side's nearest station reads higher: " + stnTxt(o) + ", against " + stnTxt(c) + " for the closed side.";
+    } else {
+      why = "Nearest stations: " + stnTxt(c) + " for " + esc(x.closed.district) + ", " + stnTxt(o) + " for " + esc(x.open.district) + ".";
+    }
+    return '<article class="bx ' + x.type + (x.reversed ? " reversed" : "") + '">' +
+      '<p class="bx-day">' + (x.type === "official" ? "Official status" : "IPU rule") + " for " + esc(dayShort(x.day)) +
+      (x.crossState ? " · across a state border" : " · within " + esc(x.closed.state)) + "</p>" +
+      '<div class="bx-sides"><div class="bx-side shut"><span class="bx-name">' + esc(x.closed.district) + '</span><span class="bx-state">' + esc(x.closed.state) + "</span>" +
+      '<span class="bx-st">' + bxSide(x.closed, x.day) + "</span></div>" +
+      '<div class="bx-mid" aria-hidden="true"><span class="bx-rule"></span><span class="bx-km">' + Math.round(x.km) + " km<br>border</span></div>" +
+      '<div class="bx-side open"><span class="bx-name">' + esc(x.open.district) + '</span><span class="bx-state">' + esc(x.open.state) + "</span>" +
+      '<span class="bx-st">' + bxSide(x.open, x.day) + "</span></div></div>" +
+      '<p class="bx-why">' + why + "</p>" +
+      '<button type="button" class="text-btn bx-map" data-i="' + i + '">See on map</button></article>';
+  }
+
+  function renderBorders() {
+    var box = $("borders-body");
+    if (!box) return;
+    if (!S.borders || !S.rule || !S.data) { box.innerHTML = '<p class="muted">The district borders are not available right now.</p>'; return; }
+    var list = L.borderSplits(S.borders, stations(), S.ann, S.rule, now());
+    S.splits = list;
+    var html = '<p class="lead-p">Haze does not stop at a district or state line, but school decisions do. Here, neighbouring districts have a different school status for the same day.</p>';
+    if (!list.length) {
+      html += '<p class="off-none">Right now no neighbouring districts have a different school status.</p>';
+    } else {
+      var shown = S.bordersAll ? list : list.slice(0, 4);
+      html += '<div class="bx-list">' + shown.map(bxItem).join("") + "</div>";
+      if (list.length > 4) html += '<button type="button" class="text-btn bx-more" id="bx-more">' + (S.bordersAll ? "Show fewer" : "Show all " + list.length) + "</button>";
+    }
+    html += '<p class="small muted">Official status: Bernama reports only. "May close" is a prediction from the IPU rule, not an announcement. ' +
+      "Neighbours come from the data.gov.my district boundaries; each district's station is the nearest DOE station with a current reading to a point well inside the district.</p>";
+    box.innerHTML = html;
+    Array.prototype.forEach.call(box.querySelectorAll(".bx-map"), function (b) {
+      b.addEventListener("click", function () { showSplit(S.splits[+b.getAttribute("data-i")]); });
+    });
+    if ($("bx-more")) $("bx-more").addEventListener("click", function () { S.bordersAll = !S.bordersAll; renderBorders(); });
+  }
+
+  function districtShape(state, district) {
+    if (!S.bounds) return null;
+    return S.bounds.districts.filter(function (d) { return L.sameState(d.state, state) && L.norm(d.district) === L.norm(district); })[0] || null;
+  }
+
+  function showSplit(x) {
+    if (!x) return;
+    var a = districtShape(x.closed.state, x.closed.district), b = districtShape(x.open.state, x.open.district);
+    var feats = [], pts = [];
+    [[a, "shut"], [b, "open"]].forEach(function (p) {
+      if (!p[0]) return;
+      feats.push({ type: "Feature", properties: { side: p[1] }, geometry: { type: "MultiPolygon", coordinates: p[0].polygons } });
+      pts.push([p[0].bbox[0], p[0].bbox[1]], [p[0].bbox[2], p[0].bbox[3]]);
+    });
+    M.pair = { type: "FeatureCollection", features: feats };
+    M.pairType = x.type;
+    renderLegend();
+    if (M.map && M.styleReady && M.map.getSource("pair")) M.map.getSource("pair").setData(M.pair);
+    if (!pts.length) pts = [x.point];
+    var target = isMobile() ? document.querySelector(".map-wrap") : $("map");
+    if (target) target.scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
+    flyTo({ bounds: boundsOf(pts), maxZoom: 9 });
+  }
+
+  function clearSplit() {
+    if (!M.pair) return;
+    M.pair = null;
+    renderLegend();
+    if (M.map && M.styleReady && M.map.getSource("pair")) M.map.getSource("pair").setData({ type: "FeatureCollection", features: [] });
+  }
+
+  // ================================================================ rule simulator (a "what if", never a prediction)
+
+  var SIM = { key: "interim", threshold: 180, days: 1, onMap: false, built: false };
+
+  function simRule() {
+    if (SIM.key === "custom") return { key: "custom", threshold: SIM.threshold, comparison: ">=", days: SIM.days };
+    return L.SIM_RULES[SIM.key];
+  }
+  function baseRule() { return { key: "ptjk", threshold: S.rule.closure.threshold, comparison: S.rule.closure.comparison, days: 1 }; }
+
+  function ruleWords(r) {
+    if (r.key === "interim") return "a reading over 180, or over 150 on 3 days in a row";
+    var cmp = r.comparison === ">" ? "over " + r.threshold : r.threshold + " or more";
+    return "a reading of " + cmp + (r.days > 1 ? " on " + r.days + " days in a row" : "");
+  }
+
+  function buildSim() {
+    var box = $("sim-body");
+    if (!box || SIM.built) return;
+    SIM.built = true;
+    var opts = [["ptjk", "Current rule", "200 or more"], ["interim", "Earlier rule", "8 to 14 Oct"], ["t150", "Stricter", "150 or more"], ["custom", "Your own", "set a level"]];
+    box.innerHTML = '<p class="lead-p">Apply a different closure rule to the same official DOE readings and see where it would have been met, today and over the last 7 days.</p>' +
+      '<div class="sim-opts" role="group" aria-label="Rule to try">' + opts.map(function (o) {
+        return '<button type="button" class="sim-opt" data-k="' + o[0] + '" aria-pressed="false"><b>' + o[1] + "</b><span>" + o[2] + "</span></button>";
+      }).join("") + "</div>" +
+      '<div class="sim-custom" id="sim-custom" hidden><label>Closure level <output id="sim-t-out"></output>' +
+      '<input type="range" id="sim-t" min="101" max="300" step="1"></label>' +
+      '<label>Days in a row <select id="sim-d"><option value="1">1 (any reading that day)</option><option value="2">2</option><option value="3">3</option></select></label></div>' +
+      '<div id="sim-out" aria-live="polite"></div>';
+    Array.prototype.forEach.call(box.querySelectorAll(".sim-opt"), function (b) {
+      b.addEventListener("click", function () { SIM.key = b.getAttribute("data-k"); renderSim(); });
+    });
+    $("sim-t").value = SIM.threshold;
+    $("sim-t").addEventListener("input", function () { SIM.threshold = +this.value; renderSim(); });
+    $("sim-d").addEventListener("change", function () { SIM.days = +this.value; renderSim(); });
+  }
+
+  function renderSim() {
+    var box = $("sim-body");
+    if (!box || !S.rule || !S.data) return;
+    buildSim();
+    Array.prototype.forEach.call(box.querySelectorAll(".sim-opt"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-k") === SIM.key)); });
+    $("sim-custom").hidden = SIM.key !== "custom";
+    $("sim-t-out").textContent = SIM.threshold;
+    var r = simRule(), b = baseRule(), res = L.simulateRule(stations(), S.daily, r, b, now(), 7);
+    S.simRes = res;
+    var t = res.days[res.days.length - 1], isBase = r.key === "ptjk";
+    var plural = function (n, w) { return n + " " + w + (n === 1 ? "" : "s"); };
+    var html = '<div class="fc-head"><h3>' + (isBase ? "The current rule" : "If the rule were " + esc(ruleWords(r))) + '</h3><span class="fc-tag">Simulation, not official</span></div>';
+    html += '<p class="sim-head">Today: <b>' + plural(t.sim, "station") + "</b>" + (t.sim ? " in " + plural(t.simStates.length, "state") : "") + " " + (t.sim === 1 ? "meets" : "meet") + " " + (isBase ? "the current rule (" + esc(ruleWords(b)) + ")" : "this rule") +
+      (isBase ? "." : ". Under the current rule: <b>" + plural(t.base, "station") + "</b>" + (t.base ? " in " + plural(t.baseStates.length, "state") : "") + ".") + "</p>";
+    if (t.sim) html += '<p class="sim-states">' + t.simStates.map(esc).join(" · ") + "</p>";
+    var chip = function (row) { return '<button type="button" class="sim-chip" data-id="' + esc(row.station.id) + '">' + esc(row.station.name) + " <b>" + esc(row.high) + "</b></button>"; };
+    if (!isBase && res.added.length) {
+      html += '<p class="sim-lbl">Met only under this rule (' + res.added.length + '), highest reading today:</p><div class="sim-chips">' + res.added.slice(0, 12).map(chip).join("") +
+        (res.added.length > 12 ? '<span class="muted small">and ' + (res.added.length - 12) + " more</span>" : "") + "</div>";
+    }
+    if (!isBase && res.removed.length) {
+      html += '<p class="sim-lbl">Met under the current rule but not this one (' + res.removed.length + "):</p><div class=\"sim-chips\">" + res.removed.slice(0, 12).map(chip).join("") + "</div>";
+    }
+    if (isBase && res.both.length) html += '<div class="sim-chips">' + res.both.slice(0, 12).map(chip).join("") + "</div>";
+    html += '<div class="sim-chart" id="sim-chart"></div>';
+    var thin = res.days.filter(function (d) { return d.unknown > 0 && d.key !== res.todayKey; }).length;
+    if (thin) html += '<p class="small muted">Days marked with a dot had too few hourly readings at some stations to tell; those stations are not counted. Days without data fill in from DOE\'s hourly tables over the next hourly updates.</p>';
+    html += '<button type="button" class="text-btn sim-map" id="sim-map" aria-pressed="' + SIM.onMap + '">' + (SIM.onMap ? "Hide from the map" : "Show today's stations on the map") + "</button>";
+    html += '<p class="disclaimer"><b>A "what if", not a prediction.</b> This applies a different rule to the same official DOE readings. It counts monitoring stations, not schools: closures are decided for whole districts or states, and only by KPM, state governments, JPN and PPD.</p>';
+    $("sim-out").innerHTML = html;
+    drawSimChart($("sim-chart"), res, r, b);
+    Array.prototype.forEach.call($("sim-out").querySelectorAll(".sim-chip"), function (c) {
+      c.addEventListener("click", function () { select({ type: "station", id: c.getAttribute("data-id") }); });
+    });
+    $("sim-map").addEventListener("click", function () {
+      SIM.onMap = !SIM.onMap; renderSim();
+      if (SIM.onMap) { var target = isMobile() ? document.querySelector(".map-wrap") : $("map"); if (target) target.scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" }); flyHome(); }
+    });
+    markSim();
+  }
+
+  function markSim() {
+    var hits = {};
+    if (SIM.onMap && S.simRes) S.simRes.today.forEach(function (r) { if (r.sim === true) hits[r.station.id] = true; });
+    Object.keys(M.markers).forEach(function (k) { M.markers[k].btn.classList.toggle("sim-hit", !!hits[k]); });
+    renderLegend();
+  }
+
+  function drawSimChart(box, res, r, b) {
+    if (!box) return;
+    var days = res.days, W = Math.max(300, box.clientWidth || 520), H = 190, padL = 28, padR = 6, padT = 18, padB = 34;
+    var max = Math.max(4, Math.max.apply(null, days.map(function (d) { return Math.max(d.sim, d.base); })));
+    max = Math.ceil(max / 4) * 4;
+    var gw = (W - padL - padR) / days.length, bw = Math.min(22, gw * 0.32);
+    var sy = function (v) { return H - padB - v / max * (H - padT - padB); };
+    var same = r.key === "ptjk";
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img",
+      "aria-label": "Stations meeting the rule each day, last 7 days: " + days.map(function (d) { return L.weekdayOfKey(d.key) + " " + d.sim + (same ? "" : " (current rule " + d.base + ")"); }).join(", ") });
+    for (var g = 0; g <= max; g += max / 4) {
+      svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
+      svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
+    }
+    var total = res.today.length;
+    days.forEach(function (d, i) {
+      var cx = padL + gw * (i + 0.5), isToday = d.key === res.todayKey;
+      var lbl0 = L.weekdayOfKey(d.key) + " " + parseInt(d.key.slice(8), 10);
+      if (!isToday && total && d.unknown >= total / 2) {
+        // most stations have no saved readings for this day: show no bars rather than zeros
+        svg.appendChild(svgEl("text", { x: cx, y: sy(0) - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, "no data"));
+        svg.appendChild(svgEl("text", { x: cx, y: H - 16, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, lbl0));
+        return;
+      }
+      var bars = same ? [[d.sim, "var(--fc)", 0]] : [[d.sim, "var(--fc)", -bw / 2 - 1], [d.base, "var(--marker-off)", bw / 2 + 1]];
+      bars.forEach(function (bb) {
+        var x = cx + bb[2] - bw / 2, y = sy(bb[0]), h = Math.max(bb[0] ? 2 : 0, sy(0) - y);
+        svg.appendChild(svgEl("rect", { x: x, y: sy(0) - h, width: bw, height: h, rx: 3, fill: bb[1], "class": bb[1] === "var(--fc)" ? "series sim-bar" : "" }));
+        svg.appendChild(svgEl("text", { x: x + bw / 2, y: sy(0) - h - 4, "font-size": 11, "font-weight": 700, fill: T().ink, "text-anchor": "middle" }, String(bb[0])));
+      });
+      var lbl = L.weekdayOfKey(d.key) + " " + parseInt(d.key.slice(8), 10);
+      svg.appendChild(svgEl("text", { x: cx, y: H - 16, "font-size": 11, fill: isToday ? T().ink : T().axis, "font-weight": isToday ? 700 : 400, "text-anchor": "middle" }, isToday ? "Today" : lbl));
+      if (d.unknown > 0 && !isToday) svg.appendChild(svgEl("circle", { cx: cx, cy: H - 5, r: 2.4, fill: T().axis }));
+    });
+    box.innerHTML = "";
+    var cap = document.createElement("p");
+    cap.className = "sim-legend-row small";
+    cap.innerHTML = '<span><i style="background:var(--fc)"></i>' + (same ? "Current rule" : "This rule") + "</span>" + (same ? "" : '<span><i style="background:var(--marker-off)"></i>Current rule (' + esc(ruleWords(b)) + ")</span>") +
+      '<span class="muted">Stations meeting the rule each day</span>';
+    box.appendChild(cap);
+    var wrap = document.createElement("div"); wrap.className = "chart"; wrap.appendChild(svg); box.appendChild(wrap);
   }
 
   // ================================================================ share & lobby screen
@@ -2342,7 +2575,7 @@
     setThemeButton();
     // redraw everything that carries theme colours
     renderLegend();
-    if (S.data) { renderStatus(); renderOverview(); renderTable(); renderMarkers(); renderSelection(false); renderOutlook(); renderClosures(); renderWatch(); }
+    if (S.data) { renderStatus(); renderOverview(); renderTable(); renderMarkers(); renderSelection(false); renderOutlook(); renderClosures(); renderWatch(); renderSim(); }
     renderSourcesSection();
     renderExplainer();
     renderDosm();
@@ -2365,6 +2598,8 @@
     renderSelection(false);
     renderClosures();
     renderWatch();
+    renderBorders();
+    renderSim();
     renderOutlook();
     renderSourcesSection();
     updateSourcesOnMap();
@@ -2379,9 +2614,11 @@
       getJSON("data/forecast.json").catch(function () { return null; }),
       getJSON("data/sources.json").catch(function () { return null; }),
       getJSON("data/announcements.json").catch(function () { return null; }),
-      getJSON("data/rule_reality.json").catch(function () { return null; })
+      getJSON("data/rule_reality.json").catch(function () { return null; }),
+      getJSON("data/daily.json").catch(function () { return null; }),
+      S.borders ? Promise.resolve(S.borders) : getJSON("data/borders.json").catch(function () { return null; })
     ]).then(function (r) {
-      S.rr = r[3];
+      S.rr = r[3]; S.daily = r[4]; S.borders = r[5];
       var newHist = r[1] && S.sources && r[1].generated_at !== S.sources.generated_at;
       S.forecast = r[0]; S.sources = r[1]; S.ann = r[2];
       if (newHist) { S.windHist = null; S.trace = null; }
@@ -2393,7 +2630,7 @@
       var d = res[0], changed = !S.data || d.last_attempt !== S.data.last_attempt;
       S.data = d;
       if (changed) renderAll();
-      else { renderStatus(); renderClosures(); updateClosedAreas(); if (S.sel) renderSelection(false); }
+      else { renderStatus(); renderClosures(); renderBorders(); updateClosedAreas(); if (S.sel) renderSelection(false); }
     }).catch(function () { renderStatus(); });
   }
 

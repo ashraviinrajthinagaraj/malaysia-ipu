@@ -20,9 +20,21 @@
 <div class="app">
 
   <header class="top" aria-labelledby="site-title">
-    <button id="theme-btn" type="button" class="theme-switch" aria-pressed="false" title="Switch neon dark mode on or off">
-      <span class="knob" aria-hidden="true"></span><span class="theme-label">Neon</span>
-    </button>
+    <div class="top-tools">
+      <button id="theme-btn" type="button" class="theme-switch" aria-pressed="false" title="Switch neon dark mode on or off">
+        <span class="knob" aria-hidden="true"></span><span class="theme-label">Neon</span>
+      </button>
+      <button id="a11y-btn" type="button" class="a11y-btn" aria-expanded="false" aria-controls="a11y-panel" aria-label="Accessibility options" title="Accessibility options">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="6.6" r="1.6" fill="currentColor"/><path d="M6.8 9.4c1.7.5 3.4.7 5.2.7s3.5-.2 5.2-.7M12 10.1v3.6m0 0-2.4 5m2.4-5 2.4 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div id="a11y-panel" class="a11y-panel" role="dialog" aria-label="Accessibility options" hidden>
+        <h2 class="a11y-title">Accessibility</h2>
+        <label class="a11y-opt"><input type="checkbox" id="a11y-sound"><span><b>Hear the haze.</b> Adds a Listen button to every 24-hour chart. Each hour plays as a tone: higher pitch means worse air, a soft buzz means Unhealthy (above 100) and a harsh buzz means 200 or above.</span></label>
+        <button type="button" id="a11y-sample" class="text-btn">Play sample tones</button>
+        <p id="a11y-sample-now" class="small muted" aria-hidden="true"></p>
+        <button type="button" id="a11y-close" class="text-btn">Close</button>
+      </div>
+    </div>
     <div class="brand">
       <h1 id="site-title">IPU Malaysia</h1>
       <p class="tagline">Official hourly haze readings for every DOE station, and whether schools near you may close.</p>
@@ -75,6 +87,7 @@
       <div id="dist" class="dist"></div>
       <h3>Highest reading in each state</h3>
       <div id="state-bars" class="state-bars"></div>
+      <div id="watch" class="watch"></div>
       <div id="outlook" class="outlook"></div>
     </section>
 
@@ -126,6 +139,7 @@
   </main>
 </div>
 <div id="tip" class="tip" role="tooltip" hidden></div>
+<p id="a11y-live" class="visually-hidden" aria-live="polite"></p>
 <script src="vendor/maplibre/maplibre-gl.js"></script>
 <script src="logic.js"></script>
 <script src="app.js"></script>

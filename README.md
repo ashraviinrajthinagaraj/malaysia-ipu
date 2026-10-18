@@ -108,6 +108,13 @@ These two features are kept apart from the official data and are labelled on the
 
 `scripts/rule_vs_reality.py` runs every hour. For each official closure (Bernama sources only) it compares the official DOE APIMS readings in the closed area with the national rule (schools close once the IPU reaches 200): the 24 hours and 3 days before the announcement, and the highest reading on each day from 2 days before to the end of the closure. Older hours come from the APIMS hourly table, which keeps about a week, and are saved in `data_cache/closure_hours.json` so they are not lost. The result, `docs/data/rule_reality.json`, is shown under each closure and in the closure check.
 
+## Watch lists, school-day dose and Hear the haze
+
+- **Rising fastest:** stations whose official IPU rose most over the last 6 hours.
+- **Unusual readings:** stations that differ by 40 or more (and by at least a third) from the middle value of the other stations within 60 km. Flagged on the map, in the table and on the station card; readings are never changed.
+- **School-day dose (estimate):** from the official PM2.5 24-hour average at the reference station, and children's breathing rates from the US EPA Exposure Factors Handbook (chapter 6, table 6-2), compared with the WHO 2021 24-hour guideline (15 µg/m³).
+- **Hear the haze:** under the Accessibility button (top right). When switched on, each 24-hour chart gets a Listen button that plays the readings as tones. The setting is remembered on that device.
+
 ## Files
 
 ```

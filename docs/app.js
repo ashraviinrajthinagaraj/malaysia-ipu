@@ -36,7 +36,7 @@
   var FIRE_MAX_AGE_MIN = 36 * 60;
   var REDUCE = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var S = { data: null, rule: null, dosm: null, forecast: null, sources: null, ann: null, bounds: null, rr: null, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
+  var S = { data: null, rule: null, dosm: null, forecast: null, sources: null, ann: null, bounds: null, rr: null, unusual: {}, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
             sel: null, lastPlaceQuery: 0, firstPaint: true };
   var M = { map: null, styleReady: false, introDone: false, markers: {}, pin: null, km: null,
             fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5, sourcesOn: false,
@@ -335,6 +335,7 @@
       }
       m.station = s;
       m.btn.classList.toggle("off", !cur);
+      m.btn.classList.toggle("unusual", !!S.unusual[s.id]);
       m.btn.style.setProperty("--c", c ? c.color : "var(--paper)");
       m.btn.style.setProperty("--ci", c ? c.ink : T().offInk);
       m.btn.style.setProperty("--d", Math.round(700 + (s.lon - 99.6) / 19.7 * 1300) + "ms");
@@ -418,6 +419,171 @@
                             : '<span><i class="wind-key" style="background:' + T().wind + '"></i>Surface wind (model)</span>');
     }
     $("map-legend").innerHTML = html;
+  }
+
+  // ================================================================ unusual readings
+
+  function unusualNote(st) {
+    var u = st && S.unusual[st.id];
+    if (!u) return "";
+    var dir = u.diff < 0 ? "below" : "above";
+    return '<p class="note unusual-note"><b>Unusual reading.</b> ' + esc(st.name) + " reads " + esc(st.api) + ", " + Math.abs(u.diff) + " " + dir +
+      " the middle value (" + u.median + ") of the " + u.count + " other stations within " + u.km + " km. This may be a local effect or a temporary instrument issue. " +
+      "The reading is shown exactly as DOE published it.</p>";
+  }
+
+  // ================================================================ school-day dose (estimate)
+
+  function roundTo(v, step) { return Math.round(v / step) * step; }
+
+  function doseHTML(st) {
+    if (!st || !L.stationCurrent(st, now()) || typeof st.pm25_24h !== "number") return "";
+    var d = L.schoolDayDose(st.pm25_24h), k = cat(st.api), p = d.primary, sc = d.secondary;
+    var times = d.ratio >= 1.15 ? "about <b>" + (d.ratio >= 10 ? Math.round(d.ratio) : Math.round(d.ratio * 10) / 10) + " times</b> as much as on a day at the WHO guideline level"
+              : d.ratio >= 0.85 ? "about the same as on a day at the WHO guideline level" : "less than on a day at the WHO guideline level";
+    var max = Math.max(sc.dose, sc.whoDose);
+    var bar = function (label, v, color, cls) {
+      return '<div class="dose-row ' + cls + '"><span class="dose-lbl">' + label + '</span><span class="dose-track"><span class="dose-fill" style="width:' +
+        Math.max(1.5, v / max * 100).toFixed(1) + "%;background:" + color + ";--c:" + color + '"></span></span><span class="dose-val">' + roundTo(v, 10) + " µg</span></div>";
+    };
+    return '<div class="dose"><div class="fc-head"><h3>School-day dose</h3><span class="fc-tag dose-tag">Estimate</span></div>' +
+      '<p class="dose-lead">At ' + esc(st.name) + "'s fine-particle level today (PM2.5 24-hour average <b>" + st.pm25_24h + " µg/m³</b>, official DOE measurement), " +
+      "a primary pupil breathes in about <b>" + roundTo(p.dose, 10) + " µg</b> of fine particles in a " + p.hours + "-hour school day, and a secondary student about <b>" +
+      roundTo(sc.dose, 10) + " µg</b> in " + sc.hours + " hours. That is " + times + " (" + d.who + " µg/m³).</p>" +
+      '<div class="dose-bars" role="img" aria-label="Secondary student: ' + roundTo(sc.dose, 10) + ' micrograms today, ' + roundTo(sc.whoDose, 10) + ' at the WHO guideline level">' +
+      bar("Today (secondary)", sc.dose, k.color, "today") + bar("WHO guideline day", sc.whoDose, "var(--muted)", "who") + "</div>" +
+      '<p class="fc-note">Estimate. It assumes classroom air is like the air outside, which is usual with open windows and fans, and typical breathing rates for children sitting and moving lightly ' +
+      '(<a href="https://www.epa.gov/expobox/exposure-factors-handbook-chapter-6" rel="noopener">US EPA Exposure Factors Handbook</a>, chapter 6). Rooms with air filters would be lower. Not medical advice.</p></div>';
+  }
+
+  // ================================================================ rising fastest & unusual list (overview)
+
+  function sparkline(series, color) {
+    if (!series || series.length < 2) return "";
+    var w = 72, h = 22, ys = series.map(function (p) { return p[1]; });
+    var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys), span = Math.max(10, hi - lo);
+    var pts = series.map(function (p, i) { return (i / (series.length - 1) * (w - 4) + 2).toFixed(1) + "," + (h - 3 - (p[1] - lo) / span * (h - 6)).toFixed(1); });
+    return '<svg class="spark" viewBox="0 0 ' + w + " " + h + '" width="' + w + '" height="' + h + '" aria-hidden="true"><polyline points="' + pts.join(" ") +
+      '" fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" class="series" style="color:' + color + '"/></svg>';
+  }
+
+  function renderWatch() {
+    var box = $("watch"), n = now();
+    if (!box) return;
+    var list = L.risingFastest(stations(), n, 6), up = list.filter(function (r) { return r.delta >= 5; }).slice(0, 5);
+    var down = list.slice().reverse().filter(function (r) { return r.delta <= -5; })[0];
+    var html = '<div class="watch-col"><h3>Rising fastest now</h3>';
+    if (!list.length) html += '<p class="muted">Not enough hourly readings yet.</p>';
+    else if (!up.length) html += '<p class="off-none">No station has risen by 5 or more in the last 6 hours.</p>';
+    else {
+      html += '<div class="watch-list">' + up.map(function (r) {
+        var k = cat(r.to);
+        return '<button type="button" class="watch-row" data-station="' + esc(r.station.id) + '"><span class="w-name">' + esc(r.station.name) +
+          '<span class="sub">' + esc(r.station.state) + ", " + r.from + " to " + r.to + "</span></span>" + sparkline(r.series, k.color) +
+          '<span class="w-delta">+' + r.delta + "</span></button>";
+      }).join("") + "</div>";
+    }
+    if (down) html += '<p class="small muted">Falling fastest: ' + esc(down.station.name) + ", " + down.from + " to " + down.to + " (" + down.delta + ").</p>";
+    if (list.length) html += '<p class="small muted">Change in the official IPU between ' + esc(L.fmtTime(L.parseTime(list[0].fromKey))) + " and " + esc(L.fmtTime(L.parseTime(list[0].toKey))) +
+      ". The IPU is a 24-hour average, so a steady rise means the air has been getting worse for hours.</p>";
+    html += "</div>";
+    var un = Object.keys(S.unusual).map(function (id) { return S.unusual[id]; }).sort(function (a, b) { return Math.abs(b.diff) - Math.abs(a.diff); });
+    html += '<div class="watch-col"><h3>Unusual readings</h3>';
+    if (!un.length) html += '<p class="off-none">No station differs sharply from the stations around it right now.</p>';
+    else {
+      html += '<div class="watch-list">' + un.map(function (u) {
+        return '<button type="button" class="watch-row" data-station="' + esc(u.station.id) + '"><span class="w-name">' + esc(u.station.name) +
+          '<span class="sub">' + esc(u.station.state) + ", nearby stations around " + u.median + "</span></span>" +
+          '<span class="w-delta unusual-delta">' + u.station.api + "</span></button>";
+      }).join("") + "</div>";
+    }
+    html += '<p class="small muted">Flagged when a reading differs by 40 or more (and by at least a third) from the middle value of the other stations within 60 km. Readings are never changed.</p></div>';
+    box.innerHTML = html;
+  }
+
+  // ================================================================ hear the haze (accessibility)
+
+  var A11Y_KEY = "ipu-a11y-sound";
+  var SOUND = { on: false, ac: null, nodes: [], timers: [] };
+  try { SOUND.on = localStorage.getItem(A11Y_KEY) === "1"; } catch (e) { SOUND.on = false; }
+
+  function announce(text) { var el = $("a11y-live"); if (el) { el.textContent = ""; setTimeout(function () { el.textContent = text; }, 30); } }
+
+  function audioCtx() {
+    if (!SOUND.ac) {
+      var C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      SOUND.ac = new C();
+    }
+    if (SOUND.ac.state === "suspended") SOUND.ac.resume();
+    return SOUND.ac;
+  }
+
+  function stopSound() {
+    SOUND.nodes.forEach(function (n) { try { n.stop(); } catch (e) { /* already stopped */ } });
+    SOUND.timers.forEach(clearTimeout);
+    SOUND.nodes = []; SOUND.timers = [];
+    Array.prototype.forEach.call(document.querySelectorAll(".listen-btn[aria-pressed='true']"), function (b) {
+      b.setAttribute("aria-pressed", "false"); b.textContent = b.getAttribute("data-label");
+    });
+  }
+
+  /* Play values as tones: one per hour, 0.22 s apart. */
+  function playTones(values, opts) {
+    var ac = audioCtx();
+    if (!ac) { announce("This browser cannot play sound."); return false; }
+    stopSound();
+    var step = 0.22, dur = 0.18, t0 = ac.currentTime + 0.12, lead = (t0 - ac.currentTime) * 1000;
+    values.forEach(function (v, i) {
+      var tone = L.toneFor(v), osc = ac.createOscillator(), g = ac.createGain(), at = t0 + i * step;
+      var vol = tone.wave === "square" ? 0.05 : tone.wave === "triangle" ? 0.12 : 0.16;
+      osc.type = tone.wave; osc.frequency.value = tone.freq;
+      g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol, at + 0.02);
+      g.gain.setValueAtTime(vol, at + dur - 0.04); g.gain.linearRampToValueAtTime(0, at + dur);
+      osc.connect(g); g.connect(ac.destination);
+      osc.start(at); osc.stop(at + dur + 0.02);
+      SOUND.nodes.push(osc);
+      if (opts && opts.onStep) SOUND.timers.push(setTimeout(function () { opts.onStep(i); }, lead + i * step * 1000));
+    });
+    SOUND.timers.push(setTimeout(function () { if (opts && opts.onEnd) opts.onEnd(); }, lead + values.length * step * 1000 + 120));
+    return true;
+  }
+
+  function whenShort(t) { return L.fmtTime(t) + " " + L.weekdayOfKey(L.mytDateKey(t)); }
+
+  function listenControls(allPts, st, markAll) {
+    var pts = allPts.slice(-24), offset = allPts.length - pts.length;
+    var mark = function (i) { markAll(i < 0 ? -1 : i + offset); };
+    var wrap = document.createElement("div");
+    wrap.className = "listen";
+    var first = pts[0], last = pts[pts.length - 1], hi = pts[0], lo = pts[0];
+    pts.forEach(function (p) { if (p.y > hi.y) hi = p; if (p.y < lo.y) lo = p; });
+    var summary = "Highest " + hi.y + " at " + whenShort(hi.t) + ". Lowest " + lo.y + " at " + whenShort(lo.t) + ". Latest " + last.y + ", " + cat(last.y).label + ".";
+    var label = "Listen to the last " + pts.length + " hours";
+    wrap.innerHTML = '<button type="button" class="listen-btn" aria-pressed="false" data-label="' + esc(label) + '">' + esc(label) + "</button>" +
+      '<p class="listen-desc">' + esc(pts.length + " tones, one per hour, from " + whenShort(first.t) + " to " + whenShort(last.t) + ". Higher pitch means worse air. " +
+      "A soft buzz means Unhealthy (above 100); a harsh buzz means 200 or above. " + summary) + "</p>";
+    var btn = wrap.querySelector("button");
+    btn.addEventListener("click", function () {
+      if (btn.getAttribute("aria-pressed") === "true") { stopSound(); mark(-1); announce("Stopped."); return; }
+      announce("Playing " + pts.length + " hours at " + st.name + ", from " + whenShort(first.t) + " to " + whenShort(last.t) + ". Higher pitch means worse air.");
+      var ok = playTones(pts.map(function (p) { return p.y; }), {
+        onStep: function (i) { mark(i); },
+        onEnd: function () { mark(-1); btn.setAttribute("aria-pressed", "false"); btn.textContent = label; announce("Finished. " + summary); }
+      });
+      if (ok) { btn.setAttribute("aria-pressed", "true"); btn.textContent = "Stop"; }
+    });
+    return wrap;
+  }
+
+  function setSoundOption(on) {
+    SOUND.on = on;
+    try { localStorage.setItem(A11Y_KEY, on ? "1" : "0"); } catch (e) { /* not saved in private mode */ }
+    if (!on) stopSound();
+    $("a11y-sound").checked = on;
+    $("a11y-btn").classList.toggle("is-on", on);
+    renderSelection(false);
+    announce(on ? "Hear the haze is on. Each 24-hour chart now has a Listen button." : "Hear the haze is off.");
   }
 
   // ================================================================ rule vs reality
@@ -1133,7 +1299,8 @@
         '<td><span class="dot" style="' + swatch(c ? c.color : T().off) + '"></span>' + esc(s.name) +
         '<span class="sub">' + (sort === "state" ? "" : esc(s.state) + ", ") + esc(s.id) + (s.place ? ", " + esc(L.tidy(s.place)) : "") + "</span></td>" +
         '<td class="num api">' + (cur ? esc(s.api) : "—") + "</td>" +
-        '<td class="hide-sm">' + (cur ? badge(s.api) + (pol ? '<span class="sub">' + esc(pol) + "</span>" : "") : badge(null)) + "</td>" +
+        '<td class="hide-sm">' + (cur ? badge(s.api) + (pol ? '<span class="sub">' + esc(pol) + "</span>" : "") : badge(null)) +
+        (S.unusual[s.id] ? '<span class="sub unusual-tag">Unusual vs nearby stations</span>' : "") + "</td>" +
         "<td>" + esc(readingTime(s.observed, n)) + (!cur && s.api !== null && s.observed ? '<span class="sub">last ' + esc(s.api) + ", outdated</span>" : "") + "</td></tr>";
     });
     if (!list.length) html = '<tr><td colspan="4" class="muted">No stations match.</td></tr>';
@@ -1262,10 +1429,12 @@
         html += '<p class="note">This station has no current reading, so the nearest station with one is shown.</p>';
       }
       m.notes.forEach(function (t) { html += '<p class="note">' + esc(t) + "</p>"; });
+      html += unusualNote(rs);
     }
     if (sel.type !== "station" && sel.source) {
       html += '<p class="small muted">' + esc(SOURCE_TEXT[sel.source] || sel.source) + (sel.sub && sel.source === "device" ? ". " + esc(sel.sub) : "") + ".</p>";
     }
+    if (ref) html += doseHTML(ref.station);
     $("loc-info").innerHTML = html;
 
     // prediction, then nearest stations, then trend
@@ -1590,6 +1759,14 @@
     overlay.addEventListener("mouseleave", function () { cross.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); hideTip(); });
     svg.appendChild(overlay);
     chart.appendChild(svg);
+    if (SOUND.on) {
+      box.insertBefore(listenControls(pts, st, function (i) {
+        if (i < 0) { cross.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); return; }
+        var p = pts[i], x = sx(p.t.getTime());
+        cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("opacity", 0.45);
+        dot.setAttribute("cx", x); dot.setAttribute("cy", sy(p.y)); dot.setAttribute("opacity", 1);
+      }), chart);
+    }
     if (!REDUCE) {
       var len = line.getTotalLength ? line.getTotalLength() : 0;
       if (len) {
@@ -1907,7 +2084,7 @@
     setThemeButton();
     // redraw everything that carries theme colours
     renderLegend();
-    if (S.data) { renderStatus(); renderOverview(); renderTable(); renderMarkers(); renderSelection(false); renderOutlook(); renderClosures(); }
+    if (S.data) { renderStatus(); renderOverview(); renderTable(); renderMarkers(); renderSelection(false); renderOutlook(); renderClosures(); renderWatch(); }
     renderSourcesSection();
     renderExplainer();
     renderDosm();
@@ -1921,6 +2098,7 @@
   // ================================================================ wiring
 
   function renderAll() {
+    S.unusual = S.data ? L.unusualReadings(stations(), now()) : {};
     renderStatus();
     populateStateFilter();
     renderOverview();
@@ -1928,6 +2106,7 @@
     renderMarkers();
     renderSelection(false);
     renderClosures();
+    renderWatch();
     renderOutlook();
     renderSourcesSection();
     updateSourcesOnMap();
@@ -1999,6 +2178,31 @@
     $("sel-close").addEventListener("click", clearSelection);
     $("map-home").addEventListener("click", flyHome);
     $("theme-btn").addEventListener("click", function () { applyTheme(themeName() === "neon" ? "light" : "neon"); });
+    $("a11y-btn").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      var p = $("a11y-panel"), open = p.hidden;
+      p.hidden = !open;
+      $("a11y-btn").setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) $("a11y-sound").focus();
+    });
+    $("a11y-sound").addEventListener("change", function () { setSoundOption($("a11y-sound").checked); });
+    $("a11y-close").addEventListener("click", function () { $("a11y-panel").hidden = true; $("a11y-btn").setAttribute("aria-expanded", "false"); $("a11y-btn").focus(); });
+    $("a11y-sample").addEventListener("click", function () {
+      var vals = [50, 100, 150, 200, 300], names = vals.map(function (v) { return v + " (" + cat(v).label + ")"; });
+      announce("Sample tones: " + names.join(", ") + ".");
+      var lbl = $("a11y-sample-now");
+      playTones(vals.map(function (v) { return v; }).reduce(function (acc, v) { return acc.concat([v, v, v]); }, []), {
+        onStep: function (i) { lbl.textContent = "Now playing: " + names[Math.floor(i / 3)]; },
+        onEnd: function () { lbl.textContent = ""; }
+      });
+    });
+    document.addEventListener("click", function (ev) {
+      var p = $("a11y-panel");
+      if (!p.hidden && !ev.target.closest("#a11y-panel") && !ev.target.closest("#a11y-btn")) { p.hidden = true; $("a11y-btn").setAttribute("aria-expanded", "false"); }
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && !$("a11y-panel").hidden) { $("a11y-panel").hidden = true; $("a11y-btn").setAttribute("aria-expanded", "false"); $("a11y-btn").focus(); }
+    });
     $("src-btn").addEventListener("click", function () { setSources(!M.sourcesOn, true); });
     document.addEventListener("click", function (ev) {
       if (ev.target.closest("#trace-show")) {
@@ -2035,6 +2239,8 @@
 
   function init() {
     setThemeButton();
+    $("a11y-sound").checked = SOUND.on;
+    $("a11y-btn").classList.toggle("is-on", SOUND.on);
     bind();
     initMap();
     Promise.all([

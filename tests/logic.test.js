@@ -289,3 +289,58 @@ test("district and school-level closures, extensions, and source checks", () => 
   assert.equal(L.officialStatus({ state: "Selangor" }, now, ann).tomorrow, null);    // non-Bernama entry ignored
   assert.equal(L.isAllowedSource("https://www.bernama.com.evil.net/x", ["bernama.com"]), false);
 });
+
+// ---- school-day dose, rising fastest, unusual readings, sound
+test("school-day dose uses EPA breathing rates and the WHO level", () => {
+  const d = L.schoolDayDose(90);
+  assert.equal(d.ratio, 6);
+  assert.ok(Math.abs(d.primary.volume - (0.8 * 4.8e-3 + 0.2 * 1.1e-2) * 60 * 6) < 1e-9);   // about 2.17 m³
+  assert.ok(Math.abs(d.primary.dose - 90 * d.primary.volume) < 1e-9);
+  assert.ok(d.secondary.dose > d.primary.dose);
+  assert.equal(L.schoolDayDose(null), null);
+});
+
+function hourlySeries(endIso, values) {          // values oldest -> newest, one per hour ending at endIso
+  const end = new Date(endIso).getTime();
+  return values.map((v, i) => [L.hourKeyOf(new Date(end - (values.length - 1 - i) * 3600000)), v]);
+}
+
+test("rising fastest compares the latest hour with 6 hours earlier", () => {
+  const obs = "2026-10-17T14:00:00+08:00";
+  const a = st("A", "Serian", "Sarawak", 1.1, 110.6, 154, obs, hourlySeries(obs, [120, 125, 129, 133, 140, 146, 150, 154]));
+  const b = st("B", "Tawau", "Sabah", 4.3, 117.9, 100, obs, hourlySeries(obs, [118, 117, 115, 110, 106, 102, 100]));
+  const c = st("C", "Old", "Sabah", 5, 116, 300, "2026-10-17T05:00:00+08:00", []);
+  const r = L.risingFastest([a, b, c], NOW, 6);
+  assert.equal(r.length, 2);
+  assert.equal(r[0].station.id, "A");
+  assert.equal(r[0].delta, 29);                     // 125 at 08:00 to 154 at 14:00
+  assert.equal(r[0].from, 125);
+  assert.equal(r[0].series.length, 8);
+  assert.equal(r[1].delta, -18);
+});
+
+test("unusual readings are flagged against nearby stations only", () => {
+  const obs = "2026-10-17T14:00:00+08:00";
+  const near = [
+    st("KS", "Kuala Selangor", "Selangor", 3.33, 101.25, 86, obs),
+    st("K", "Klang", "Selangor", 3.01, 101.41, 170, obs),
+    st("SA", "Shah Alam", "Selangor", 3.10, 101.56, 170, obs),
+    st("PJ", "Petaling Jaya", "Selangor", 3.13, 101.61, 158, obs),
+    st("FAR", "Kota Bharu", "Kelantan", 6.13, 102.24, 48, obs)
+  ];
+  const u = L.unusualReadings(near, NOW);
+  assert.deepEqual(Object.keys(u), ["KS"]);
+  assert.equal(u.KS.median, 170);
+  assert.equal(u.KS.diff, -84);
+  assert.ok(!u.FAR);                                   // no neighbours within 60 km: never flagged
+  const calm = near.map((s) => ({ ...s, api: s.id === "KS" ? 140 : s.api }));
+  assert.deepEqual(Object.keys(L.unusualReadings(calm, NOW)), []);   // 30 below: not unusual
+});
+
+test("sound: higher readings give higher pitch and a harsher tone above 200", () => {
+  assert.equal(Math.round(L.toneFor(0).freq), 220);
+  assert.equal(Math.round(L.toneFor(150).freq), 440);
+  assert.equal(L.toneFor(80).wave, "sine");
+  assert.equal(L.toneFor(150).wave, "triangle");
+  assert.equal(L.toneFor(210).wave, "square");
+});

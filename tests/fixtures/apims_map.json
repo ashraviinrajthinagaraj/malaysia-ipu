@@ -1,13 +1,95 @@
 {
-  "_note": "TEST FIXTURE ONLY. Same structure as the APIMS map-service answer (fields and units checked against the live service on 17 Oct 2026). Values are for tests, not real readings. Never published by the site.",
-  "displayFieldName": "STATION_ID",
-  "geometryType": "esriGeometryPoint",
-  "spatialReference": {"wkid": 4326, "latestWkid": 4326},
-  "features": [
-    {"attributes": {"STATION_ID": "CA01R", "STATION_LOCATION": "Kangar, PERLIS", "PLACE": "Sekolah Kebangsaan Test", "STATE_NAME": "Perlis", "STATE_ID": 9, "REGION_NAME": "UTARA", "DATETIME": 1792245600000, "API": 63, "PARAM_SYMBOL": "**", "STATION_STATUS": "ACTIVE", "LATITUDE": 6.429928, "LONGITUDE": 100.210937}},
-    {"attributes": {"STATION_ID": "CA03K", "STATION_LOCATION": "Alor Setar, KEDAH", "PLACE": null, "STATE_NAME": "Kedah", "STATE_ID": 2, "REGION_NAME": "UTARA", "DATETIME": 1792245600000, "API": 64, "PARAM_SYMBOL": "**", "STATION_STATUS": "ACTIVE", "LATITUDE": 6.13713, "LONGITUDE": 100.346857}},
-    {"attributes": {"STATION_ID": "CA23N", "STATION_LOCATION": "Nilai, NEGERI SEMBILAN", "PLACE": null, "STATE_NAME": "Negeri Sembilan", "STATE_ID": 5, "REGION_NAME": "SELATAN", "DATETIME": 1792245600000, "API": 177, "PARAM_SYMBOL": "**", "STATION_STATUS": "ACTIVE", "LATITUDE": 2.821676, "LONGITUDE": 101.81153}},
-    {"attributes": {"STATION_ID": "CA24N", "STATION_LOCATION": "Seremban, NEGERI SEMBILAN", "PLACE": null, "STATE_NAME": "Negeri Sembilan", "STATE_ID": 5, "REGION_NAME": "SELATAN", "DATETIME": 1792245600000, "API": 205, "PARAM_SYMBOL": "**", "STATION_STATUS": "ACTIVE", "LATITUDE": 2.72, "LONGITUDE": 101.94}},
-    {"attributes": {"STATION_ID": "CA25N", "STATION_LOCATION": "Port Dickson, NEGERI SEMBILAN", "PLACE": null, "STATE_NAME": "Negeri Sembilan", "STATE_ID": 5, "REGION_NAME": "SELATAN", "DATETIME": 1792242000000, "API": -1, "PARAM_SYMBOL": null, "STATION_STATUS": "ACTIVE", "LATITUDE": 2.52, "LONGITUDE": 101.79}}
-  ]
+ "_note": "TEST FIXTURE ONLY. Same structure as the APIMS map-service answer (fields and units checked against the live service on 17 Oct 2026). Values are for tests, not real readings. Never published by the site.",
+ "displayFieldName": "STATION_ID",
+ "geometryType": "esriGeometryPoint",
+ "spatialReference": {
+  "wkid": 4326,
+  "latestWkid": 4326
+ },
+ "features": [
+  {
+   "attributes": {
+    "STATION_ID": "CA01R",
+    "STATION_LOCATION": "Kangar, PERLIS",
+    "PLACE": "Sekolah Kebangsaan Test",
+    "STATE_NAME": "Perlis",
+    "STATE_ID": 9,
+    "REGION_NAME": "UTARA",
+    "DATETIME": 1792245600000,
+    "API": 63,
+    "PARAM_SYMBOL": "**",
+    "STATION_STATUS": "ACTIVE",
+    "LATITUDE": 6.429928,
+    "LONGITUDE": 100.210937
+   }
+  },
+  {
+   "attributes": {
+    "STATION_ID": "CA03K",
+    "STATION_LOCATION": "Alor Setar, KEDAH",
+    "PLACE": null,
+    "STATE_NAME": "Kedah",
+    "STATE_ID": 2,
+    "REGION_NAME": "UTARA",
+    "DATETIME": 1792245600000,
+    "API": 64,
+    "PARAM_SYMBOL": "**",
+    "STATION_STATUS": "ACTIVE",
+    "LATITUDE": 6.13713,
+    "LONGITUDE": 100.346857
+   }
+  },
+  {
+   "attributes": {
+    "STATION_ID": "CA23N",
+    "STATION_LOCATION": "Nilai, NEGERI SEMBILAN",
+    "PLACE": null,
+    "STATE_NAME": "Negeri Sembilan",
+    "STATE_ID": 5,
+    "REGION_NAME": "SELATAN",
+    "DATETIME": 1792245600000,
+    "API": 177,
+    "PARAM_SYMBOL": "**",
+    "STATION_STATUS": "ACTIVE",
+    "LATITUDE": 2.821676,
+    "LONGITUDE": 101.81153,
+    "PM25_CONC": 123.471,
+    "PM25_24H_AVG": 106.052
+   }
+  },
+  {
+   "attributes": {
+    "STATION_ID": "CA24N",
+    "STATION_LOCATION": "Seremban, NEGERI SEMBILAN",
+    "PLACE": null,
+    "STATE_NAME": "Negeri Sembilan",
+    "STATE_ID": 5,
+    "REGION_NAME": "SELATAN",
+    "DATETIME": 1792245600000,
+    "API": 205,
+    "PARAM_SYMBOL": "**",
+    "STATION_STATUS": "ACTIVE",
+    "LATITUDE": 2.72,
+    "LONGITUDE": 101.94
+   }
+  },
+  {
+   "attributes": {
+    "STATION_ID": "CA25N",
+    "STATION_LOCATION": "Port Dickson, NEGERI SEMBILAN",
+    "PLACE": null,
+    "STATE_NAME": "Negeri Sembilan",
+    "STATE_ID": 5,
+    "REGION_NAME": "SELATAN",
+    "DATETIME": 1792242000000,
+    "API": -1,
+    "PARAM_SYMBOL": null,
+    "STATION_STATUS": "ACTIVE",
+    "LATITUDE": 2.52,
+    "LONGITUDE": 101.79,
+    "PM25_CONC": -1,
+    "PM25_24H_AVG": null
+   }
+  }
+ ]
 }

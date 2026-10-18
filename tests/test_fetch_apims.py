@@ -117,6 +117,9 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(st["CA23N"]["name"], "Nilai")
         self.assertEqual(st["CA23N"]["state"], "Negeri Sembilan")
         self.assertEqual(st["CA23N"]["category"], "Unhealthy")
+        self.assertEqual(st["CA23N"]["pm25_24h"], 106.1)
+        self.assertEqual(st["CA23N"]["pm25_1h"], 123.5)
+        self.assertIsNone(st["CA25N"]["pm25_1h"])
         self.assertEqual(st["CA24N"]["category"], "Very unhealthy")
         # map DATETIME is Malaysia wall-clock time stored as if UTC
         self.assertEqual(st["CA23N"]["observed"], "2026-10-17T14:00:00+08:00")
@@ -144,6 +147,7 @@ class FetchTests(unittest.TestCase):
         st = self.by_id(data)["CA23N"]
         self.assertEqual(st["observed"], "2026-10-17T15:00:00+08:00")
         self.assertEqual(st["source"], "hourly")
+        self.assertIsNone(st["pm25_24h"])          # no concentration paired with a newer table hour
 
     def test_total_failure_keeps_old_readings_and_marks_failed(self):
         self.run_fetch()

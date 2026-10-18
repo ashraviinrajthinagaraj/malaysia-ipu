@@ -686,8 +686,94 @@
     return "";
   }
 
+  // ------------------------------------------------------------ school-day dose (estimate)
+
+  /* Breathing rates: US EPA Exposure Factors Handbook (2011), Table 6-2, mean short-term rates
+     (m³ per minute), sedentary/passive and light intensity. A school day is taken as mostly
+     sitting (80%) with some light activity (20%). WHO 2021 guideline for 24-hour PM2.5: 15 µg/m³. */
+  var DOSE = {
+    who24h: 15,
+    primary: { label: "primary pupil (age 7 to 12)", hours: 6, sedentary: 4.8e-3, light: 1.1e-2 },
+    secondary: { label: "secondary student (age 13 to 17)", hours: 7, sedentary: 5.4e-3, light: 1.3e-2 },
+    lightShare: 0.2
+  };
+
+  function schoolDayDose(pm25) {
+    if (typeof pm25 !== "number" || !(pm25 >= 0)) return null;
+    function one(g) {
+      var perMin = (1 - DOSE.lightShare) * g.sedentary + DOSE.lightShare * g.light;
+      var volume = perMin * 60 * g.hours;                 // m³ of air breathed during the school day
+      return { label: g.label, hours: g.hours, volume: volume, dose: pm25 * volume, whoDose: DOSE.who24h * volume };
+    }
+    return { pm25: pm25, who: DOSE.who24h, ratio: pm25 / DOSE.who24h, primary: one(DOSE.primary), secondary: one(DOSE.secondary) };
+  }
+
+  // ------------------------------------------------------------ rising fastest
+
+  /* Change in official IPU over `hours` hours, for stations with a current reading:
+     the latest hour against the same station `hours` hours earlier. */
+  function risingFastest(stations, now, hours) {
+    hours = hours || 6;
+    var out = [];
+    (stations || []).forEach(function (s) {
+      if (!stationCurrent(s, now)) return;
+      var h = {};
+      (s.hourly || []).forEach(function (p) { if (p[1] !== null && p[1] !== undefined) h[p[0]] = p[1]; });
+      var t = parseTime(s.observed), k1 = hourKeyOf(t), k0 = hourKeyOf(new Date(t.getTime() - hours * 3600000));
+      if (h[k1] === undefined || h[k0] === undefined) return;
+      var series = [];
+      for (var i = 12; i >= 0; i--) {
+        var k = hourKeyOf(new Date(t.getTime() - i * 3600000));
+        if (h[k] !== undefined) series.push([k, h[k]]);
+      }
+      out.push({ station: s, from: h[k0], to: h[k1], delta: h[k1] - h[k0], fromKey: k0, toKey: k1, series: series });
+    });
+    return out.sort(function (a, b) { return b.delta - a.delta || b.to - a.to; });
+  }
+
+  function hourKeyOf(d) {
+    var p = mytParts(d);
+    return p.year + "-" + p.month + "-" + p.day + "T" + p.hour + ":00";
+  }
+
+  // ------------------------------------------------------------ unusual readings
+
+  /* A station is flagged when its current reading differs from the middle value of the
+     other stations within `km` km (at least 2 with current readings) by 40 or more and by
+     at least 35% of that middle value. The reading itself is never changed. */
+  function unusualReadings(stations, now, opts) {
+    opts = opts || {};
+    var km = opts.km || 60, minDiff = opts.minDiff || 40, minShare = opts.minShare || 0.35;
+    var cur = (stations || []).filter(function (s) { return stationCurrent(s, now) && typeof s.lat === "number"; });
+    var out = {};
+    cur.forEach(function (s) {
+      var nb = cur.filter(function (o) { return o !== s; })
+        .map(function (o) { return { s: o, km: haversineKm(s.lat, s.lon, o.lat, o.lon) }; })
+        .filter(function (x) { return x.km <= km; })
+        .sort(function (a, b) { return a.km - b.km; });
+      if (nb.length < 2) return;
+      var vals = nb.map(function (x) { return x.s.api; }).sort(function (a, b) { return a - b; });
+      var n = vals.length, med = n % 2 ? vals[(n - 1) / 2] : (vals[n / 2 - 1] + vals[n / 2]) / 2;
+      var diff = s.api - med;
+      if (Math.abs(diff) >= Math.max(minDiff, minShare * med)) {
+        out[s.id] = { station: s, median: Math.round(med), diff: Math.round(diff), count: n,
+                      neighbours: nb.map(function (x) { return { name: x.s.name, api: x.s.api, km: Math.round(x.km) }; }), km: km };
+      }
+    });
+    return out;
+  }
+
+  // ------------------------------------------------------------ hear the haze (sound mapping)
+
+  /* Pitch for a reading: 220 Hz at 0, doubling every 150 points (440 Hz at 150, 880 Hz at 300). */
+  function toneFor(api) {
+    var v = Math.max(0, Math.min(400, api || 0));
+    return { freq: 220 * Math.pow(2, v / 150), wave: v >= 200 ? "square" : v > 100 ? "triangle" : "sine" };
+  }
+
   var api = {
-    TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, locate: locate, validClosure: validClosure,
+    TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, schoolDayDose: schoolDayDose, DOSE: DOSE,
+    risingFastest: risingFastest, unusualReadings: unusualReadings, toneFor: toneFor, hourKeyOf: hourKeyOf, locate: locate, validClosure: validClosure,
     closureCovers: closureCovers, officialStatus: officialStatus, activeClosures: activeClosures, areaLabel: areaLabel,
     isAllowedSource: isAllowedSource, windHistAt: windHistAt, backTrajectory: backTrajectory,
     regionOf: regionOf, pathRegions: pathRegions, firesNearPath: firesNearPath, coverageZones: coverageZones, inPoly: inPoly, STALE_HOURS: STALE_HOURS, CATEGORIES: CATEGORIES, categoryFor: categoryFor, pollutantName: pollutantName,

@@ -47,7 +47,7 @@ TABLE_URL = os.environ.get(
     "https://eqms.doe.gov.my/api3/publicportalapims/apitablehourly")
 
 MAP_FIELDS = ("STATION_ID,STATION_LOCATION,PLACE,STATE_NAME,STATE_ID,REGION_NAME,"
-              "DATETIME,API,PARAM_SYMBOL,STATION_STATUS,LATITUDE,LONGITUDE")
+              "DATETIME,API,PARAM_SYMBOL,STATION_STATUS,LATITUDE,LONGITUDE,PM25_CONC,PM25_24H_AVG")
 USER_AGENT = ("Mozilla/5.0 (compatible; MalaysiaIPUDashboard/1.0; "
               "hourly public dashboard, reads APIMS once per hour)")
 KEEP_HOURS = 48          # hourly values kept per station (for "today" and the 24 h chart)
@@ -103,6 +103,17 @@ def to_api(value):
     if f < 0 or f != f:          # negative codes and NaN mean "no reading"
         return None
     return int(f) if f == int(f) else round(f, 1)
+
+
+def to_conc(value):
+    """Concentration in µg/m³ (1 decimal), None when missing, negative or absurd."""
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    if f != f or f < 0 or f > 2000:
+        return None
+    return round(f, 1)
 
 
 def to_coord(value, lo, hi):
@@ -210,6 +221,9 @@ def fetch_map():
             "pollutant": (str(a.get("PARAM_SYMBOL")).strip() or None) if a.get("PARAM_SYMBOL") is not None else None,
             "station_status": a.get("STATION_STATUS"),
             "observed": observed,
+            # official PM2.5 concentrations from the same reading (µg/m³)
+            "pm25_1h": to_conc(a.get("PM25_CONC")),
+            "pm25_24h": to_conc(a.get("PM25_24H_AVG")),
         }
     if not out:
         raise RuntimeError("map service returned no stations")
@@ -359,6 +373,9 @@ def build(now, prev):
         base["api"] = api if obs is not None else None
         base["observed"] = iso(obs) if obs is not None else None
         base["source"] = source
+        if source != "current":
+            base["pm25_1h"] = None          # concentrations come only with the map reading;
+            base["pm25_24h"] = None         # never pair an old one with a newer hour
         base["category"] = category(base["api"])
         stations.append(base)
 

@@ -705,7 +705,7 @@
           (started ? "closed " + esc(untilText(c)) : "close " + (c.until_further_notice ? "from " + esc(dayShort(c.from)) + " until further notice" : esc(rangeText(c.from, c.to)))) + "</p>" +
           '<p class="pred-detail">' + esc(c.covers) + (c.learning ? " " + esc(c.learning) : "") + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
       });
-      html += '<p class="small muted">From Bernama reports only, checked at about 6 am, 4 pm and 7 pm daily (last checked ' + esc(checkedText()) + "). Confirm with your school or JPN.</p>";
+      html += '<p class="small muted">From Bernama reports only, checked every hour (last checked ' + esc(checkedText()) + "). Confirm with your school or JPN.</p>";
     }
     var tk = L.mytDateKey(n), recent = ((S.ann && S.ann.closures) || []).filter(function (c) {
       return L.validClosure(c, S.ann.source_policy) && c.to < tk && c.to >= L.addDaysKey(tk, -14);
@@ -715,7 +715,7 @@
         return '<div class="closure-item ended"><p class="ci-head"><b>' + esc(L.areaLabel(c)) + "</b>: schools were closed " + esc(rangeText(c.from, c.to)) + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
       }).join("");
     }
-    if (annStale()) html += '<p class="note">Announcements were last checked more than a day ago, so a newer announcement may be missing.</p>';
+    if (annStale()) html += '<p class="note">Announcements were last checked more than 4 hours ago, so a newer announcement may be missing.</p>';
     box.innerHTML = html;
     drawAllRR();
   }
@@ -1505,7 +1505,7 @@
   }
   function annStale() {
     var t = S.ann && L.parseTime(S.ann.checked_at);
-    return !t || (Date.now() - t.getTime()) > 36 * 3600000;
+    return !t || (Date.now() - t.getTime()) > 4 * 3600000;
   }
 
   /* State and district of the selected place, from the official boundaries when loaded. */
@@ -1537,7 +1537,7 @@
   function officialHTML(place, n) {
     if (!S.ann || !place || !place.state) return { closed: false, any: false, html: "" };
     var o = L.officialStatus(place, n, S.ann), html = "", stale = annStale();
-    var staleNote = stale ? '<p class="note">Announcements were last checked ' + esc(checkedText()) + ", more than a day ago, so a newer announcement may be missing.</p>" : "";
+    var staleNote = stale ? '<p class="note">Announcements were last checked ' + esc(checkedText()) + ", more than 4 hours ago, so a newer announcement may be missing.</p>" : "";
     if (o.tomorrow) {
       var c = o.tomorrow, last = o.lastDay || c.to;
       var ufn = c.until_further_notice || (o.today && o.today.until_further_notice);
@@ -1946,9 +1946,9 @@
       "<p>Sources:</p><ul>" + r.sources.map(function (s) { return '<li><a href="' + esc(s.url) + '" rel="noopener">' + esc(s.title) + "</a> (" + esc(s.date) + ")</li>"; }).join("") + "</ul></div></details>" +
       "<details><summary>Official closure announcements</summary><div>" +
       "<p>When a state or KPM announces that schools are closed, the closure check shows it as <b>officially closed</b> for the area and dates announced, instead of the IPU prediction. " +
-      "Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama three times a day, at about 6 am, 4 pm and 7 pm, and adds new closures and extensions.</p>" +
+      "Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama every hour and adds new closures and extensions.</p>" +
       "<p>The site works out which state and district a school or place is in from the official district boundaries published by data.gov.my, so a closure for a state or district is applied to every place inside it. " +
-      "Announcements made after 7 pm appear after the 6 am check the next morning. Always confirm with your school or the State Education Department (JPN).</p></div></details>" +
+      "New announcements usually appear within an hour of Bernama reporting them. Always confirm with your school or the State Education Department (JPN).</p></div></details>" +
       "<details><summary>Rule vs reality</summary><div>" +
       "<p>For every official closure, the site compares the official DOE readings in the closed area with the national rule, under which schools in the affected area close once the IPU reaches 200. " +
       "It looks at the 24 hours and the 3 days before the announcement, and at the highest reading each day from 2 days before until the closure ends. " +

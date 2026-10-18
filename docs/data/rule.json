@@ -23,7 +23,7 @@
     "Weekends and year-end school holidays are shown as 'no school' days. Public holidays and state-specific holidays are not included.",
     "No prediction is shown when the reference station has no reading from the last 3 hours."
   ],
-  "who_decides": "Closures are decided and announced by KPM, the state governments and education departments (JPN) and District Education Offices (PPD). This site shows announced closures only as reported by Bernama, checked at about 6 am, 4 pm and 7 pm daily, and otherwise predicts from the IPU rule. Since 10 Oct 2026, State Education Directors announce daily school status based on DOE readings.",
+  "who_decides": "Closures are decided and announced by KPM, the state governments and education departments (JPN) and District Education Offices (PPD). This site shows announced closures only as reported by Bernama, checked every hour, and otherwise predicts from the IPU rule. Since 10 Oct 2026, State Education Directors announce daily school status based on DOE readings.",
   "previous_rules": [
     {
       "from": "2026-10-08",

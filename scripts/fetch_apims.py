@@ -373,9 +373,15 @@ def build(now, prev):
         base["api"] = api if obs is not None else None
         base["observed"] = iso(obs) if obs is not None else None
         base["source"] = source
-        if source != "current":
-            base["pm25_1h"] = None          # concentrations come only with the map reading;
-            base["pm25_24h"] = None         # never pair an old one with a newer hour
+        # PM2.5 concentrations come only with the map reading, so they keep the map
+        # reading's own hour; the page shows that hour whenever it differs.
+        map_obs = ((current or {}).get(sid) or {}).get("observed")
+        if map_obs is not None and (base.get("pm25_1h") is not None or base.get("pm25_24h") is not None):
+            base["pm25_at"] = iso(map_obs)
+        else:
+            base["pm25_1h"] = None
+            base["pm25_24h"] = None
+            base["pm25_at"] = None
         base["category"] = category(base["api"])
         stations.append(base)
 

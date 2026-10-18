@@ -120,6 +120,7 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(st["CA23N"]["pm25_24h"], 106.1)
         self.assertEqual(st["CA23N"]["pm25_1h"], 123.5)
         self.assertIsNone(st["CA25N"]["pm25_1h"])
+        self.assertEqual(st["CA23N"]["pm25_at"], "2026-10-17T14:00:00+08:00")
         self.assertEqual(st["CA24N"]["category"], "Very unhealthy")
         # map DATETIME is Malaysia wall-clock time stored as if UTC
         self.assertEqual(st["CA23N"]["observed"], "2026-10-17T14:00:00+08:00")
@@ -147,7 +148,17 @@ class FetchTests(unittest.TestCase):
         st = self.by_id(data)["CA23N"]
         self.assertEqual(st["observed"], "2026-10-17T15:00:00+08:00")
         self.assertEqual(st["source"], "hourly")
-        self.assertIsNone(st["pm25_24h"])          # no concentration paired with a newer table hour
+        self.assertIsNone(st["pm25_24h"])          # no map reading this run, so no concentration
+
+    def test_map_lagging_keeps_concentration_with_its_own_hour(self):
+        # the map still shows 14:00 while the table already has 15:00
+        code, data, log = self.run_fetch(now="2026-10-17T15:20:00")
+        self.assertEqual(code, 0, log)
+        st = self.by_id(data)["CA23N"]
+        self.assertEqual(st["observed"], "2026-10-17T15:00:00+08:00")
+        self.assertEqual(st["source"], "hourly")
+        self.assertEqual(st["pm25_24h"], 106.1)
+        self.assertEqual(st["pm25_at"], "2026-10-17T14:00:00+08:00")
 
     def test_total_failure_keeps_old_readings_and_marks_failed(self):
         self.run_fetch()

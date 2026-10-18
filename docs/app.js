@@ -432,12 +432,43 @@
       "The reading is shown exactly as DOE published it.</p>";
   }
 
+  // ================================================================ air right now (official 1-hour PM2.5)
+
+  function nowAirHTML(st) {
+    var pt = L.pm25Time(st, now());
+    if (!pt || typeof st.pm25_1h !== "number") return "";
+    var a = st.pm25_1h, d = st.pm25_24h, ratio = d > 0 ? a / d : 1, word, cls;
+    var lag = pm25Lag(st, pt);
+    var rn = lag ? "" : " right now";
+    if (ratio >= 1.25) { word = "worse" + rn + " than the IPU suggests"; cls = "worse"; }
+    else if (ratio <= 0.75) { word = "better" + rn + " than the IPU suggests"; cls = "better"; }
+    else { word = "about the same as the IPU suggests"; cls = "same"; }
+    var max = Math.max(a, d, 1);
+    return '<div class="nowair ' + cls + '"><div class="fc-head"><h3>Air right now</h3><span class="fc-tag nowair-tag">Official DOE measurement</span></div>' +
+      '<div class="nowair-grid"><div><span class="na-v">' + Math.round(a) + '</span><span class="na-u">µg/m³</span><span class="na-k">PM2.5 ' + (lag ? "at " + esc(L.fmtTime(pt)) : "this hour") + '</span>' +
+      '<span class="na-bar"><i style="width:' + (a / max * 100).toFixed(1) + '%"></i></span></div>' +
+      '<div><span class="na-v">' + Math.round(d) + '</span><span class="na-u">µg/m³</span><span class="na-k">PM2.5 24-hour average (what the IPU uses)</span>' +
+      '<span class="na-bar avg"><i style="width:' + (d / max * 100).toFixed(1) + '%"></i></span></div></div>' +
+      '<p class="nowair-lead">' + (lag ? "At " + esc(L.fmtTime(pt)) + ", the air at " : "The air at ") + esc(st.name) + (lag ? " was <b>" : " is <b>") + word + "</b>. " +
+      (cls === "worse" ? "The IPU is a 24-hour average, so it will usually keep rising for a while if the air stays like this."
+        : cls === "better" ? "The IPU is a 24-hour average, so it will usually fall over the next hours if the air stays like this."
+        : lag ? "The air that hour was close to its 24-hour average." : "The air this hour is close to its 24-hour average.") + "</p>" +
+      (lag ? '<p class="fc-note">DOE has published the IPU for ' + esc(L.fmtTime(L.parseTime(st.observed))) + " but its PM2.5 values only up to " + esc(L.fmtTime(pt)) + ", so these show " + esc(L.fmtTime(pt)) + ".</p>" : "") + "</div>";
+  }
+
+  /* True when the PM2.5 values are from an earlier hour than the IPU shown. */
+  function pm25Lag(st, pt) {
+    var o = L.parseTime(st.observed);
+    return !!(o && pt && o.getTime() - pt.getTime() >= 30 * 60000);
+  }
+
   // ================================================================ school-day dose (estimate)
 
   function roundTo(v, step) { return Math.round(v / step) * step; }
 
   function doseHTML(st) {
-    if (!st || !L.stationCurrent(st, now()) || typeof st.pm25_24h !== "number") return "";
+    var pt = L.pm25Time(st, now());
+    if (!pt) return "";
     var d = L.schoolDayDose(st.pm25_24h), k = cat(st.api), p = d.primary, sc = d.secondary;
     var times = d.ratio >= 1.15 ? "about <b>" + (d.ratio >= 10 ? Math.round(d.ratio) : Math.round(d.ratio * 10) / 10) + " times</b> as much as on a day at the WHO guideline level"
               : d.ratio >= 0.85 ? "about the same as on a day at the WHO guideline level" : "less than on a day at the WHO guideline level";
@@ -447,7 +478,7 @@
         Math.max(1.5, v / max * 100).toFixed(1) + "%;background:" + color + ";--c:" + color + '"></span></span><span class="dose-val">' + roundTo(v, 10) + " µg</span></div>";
     };
     return '<div class="dose"><div class="fc-head"><h3>School-day dose</h3><span class="fc-tag dose-tag">Estimate</span></div>' +
-      '<p class="dose-lead">At ' + esc(st.name) + "'s fine-particle level today (PM2.5 24-hour average <b>" + st.pm25_24h + " µg/m³</b>, official DOE measurement), " +
+      '<p class="dose-lead">At ' + esc(st.name) + "'s fine-particle level today (PM2.5 24-hour average <b>" + st.pm25_24h + " µg/m³</b>, official DOE measurement" + (pm25Lag(st, pt) ? " for " + esc(L.fmtTime(pt)) : "") + "), " +
       "a primary pupil breathes in about <b>" + roundTo(p.dose, 10) + " µg</b> of fine particles in a " + p.hours + "-hour school day, and a secondary student about <b>" +
       roundTo(sc.dose, 10) + " µg</b> in " + sc.hours + " hours. That is " + times + " (" + d.who + " µg/m³).</p>" +
       '<div class="dose-bars" role="img" aria-label="Secondary student: ' + roundTo(sc.dose, 10) + ' micrograms today, ' + roundTo(sc.whoDose, 10) + ' at the WHO guideline level">' +
@@ -1319,6 +1350,7 @@
 
   function select(sel, opts) {
     opts = opts || {};
+    if ($("share-panel")) $("share-panel").hidden = true;
     S.sel = sel;
     if (!opts.keepHash) setHash(sel);
     $("results").innerHTML = "";
@@ -1355,6 +1387,7 @@
     if (!h) return null;
     var q = {};
     h.split("&").forEach(function (kv) { var i = kv.indexOf("="); if (i > 0) q[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); });
+    S.lobbyWanted = q.screen === "1";
     if (q.station) return { type: "station", id: q.station };
     if (q.state) return { type: "state", state: q.state };
     if (q.school) return { type: "school-code", code: q.school };
@@ -1434,7 +1467,7 @@
     if (sel.type !== "station" && sel.source) {
       html += '<p class="small muted">' + esc(SOURCE_TEXT[sel.source] || sel.source) + (sel.sub && sel.source === "device" ? ". " + esc(sel.sub) : "") + ".</p>";
     }
-    if (ref) html += doseHTML(ref.station);
+    if (ref) html += nowAirHTML(ref.station) + doseHTML(ref.station);
     $("loc-info").innerHTML = html;
 
     // prediction, then nearest stations, then trend
@@ -1449,6 +1482,9 @@
     else $("trend").innerHTML = "";
     renderForecast($("forecast"), ref ? ref.station : st);
     renderAirPath();
+    S.view = makeView(sel, title, sub, ref ? ref.station : (st && L.stationCurrent(st, n) ? st : null), ref ? ref.km : 0,
+                      place, place.state || sel.state || (ref && ref.station.state) || (st && st.state), n, sel.type === "station");
+    if (S.lobbyOn) renderLobby();
     var zone = updateZones();
     if (zone) {
       $("loc-info").insertAdjacentHTML("beforeend", '<p class="zone-note">You are inside the area covered by <b>' + esc(zone.station.name) +
@@ -1677,6 +1713,8 @@
     if (sum.highest) renderTrend($("trend"), sum.highest, "Last 24 hours at " + sum.highest.name + ", the highest station in " + sel.state);
     else $("trend").innerHTML = "";
     renderForecast($("forecast"), sum.highest);
+    S.view = makeView(sel, sel.state, sum.current.length + " stations with a current reading", sum.highest, 0, { state: sel.state }, sel.state, n, false, true);
+    if (S.lobbyOn) renderLobby();
     renderAirPath();
     updateZones();
     if (moveMap) updateTraceDisplay();
@@ -1687,6 +1725,223 @@
       var pts = sum.stations.filter(function (s) { return typeof s.lat === "number"; }).map(function (s) { return [s.lon, s.lat]; });
       if (pts.length) flyTo({ bounds: boundsOf(pts), maxZoom: 9.5 });
     }
+  }
+
+  // ================================================================ share & lobby screen
+
+  /* Plain facts about the current selection, used by the share card and the lobby screen. */
+  function makeView(sel, title, sub, st, km, place, stateName, n, isStation, isState) {
+    var v = { title: title, sub: sub, url: location.origin + location.pathname + (location.hash || ""), station: st, km: km,
+              isStation: isStation, isState: !!isState, api: st ? st.api : null, cat: st ? cat(st.api) : null,
+              at: st ? L.parseTime(st.observed) : null, status: null, statusKind: "none", statusNote: "" };
+    var o = S.ann && place && place.state ? L.officialStatus(place, n, S.ann) : null;
+    if (o && o.tomorrow) {
+      var c = o.tomorrow;
+      v.statusKind = "official";
+      v.status = "Schools officially closed " + (c.until_further_notice ? "until further notice" : (o.today ? "until " + dayShort(o.lastDay || c.to) : rangeText(c.from, o.lastDay || c.to)));
+      v.statusNote = "Announced by " + (c.announced_by.split(",")[0]) + ", reported by Bernama";
+    } else if (o && o.today) {
+      v.statusKind = "official";
+      v.status = "Official closure ends today";
+      v.statusNote = "Reported by Bernama";
+    } else if (st && S.rule && !isState) {
+      var p = L.predict(st, S.rule, n, stateName);
+      if (p.available) {
+        v.statusKind = p.level === "may_close" ? "may_close" : "predicted";
+        v.status = p.status;
+        v.statusNote = "Prediction from the IPU rule, not an announcement";
+      }
+    } else if (isState && S.rule) {
+      var sum = L.stateSummary(stateName, stations(), S.rule, n);
+      v.statusKind = sum.reached.length ? "may_close" : "predicted";
+      v.status = sum.reached.length ? "Closure level reached at " + sum.reached.length + " station" + (sum.reached.length > 1 ? "s" : "") : "Closure level not reached";
+      v.statusNote = "Prediction from the IPU rule, not an announcement";
+    }
+    return v;
+  }
+
+  function shareText(v) {
+    var lines = [v.title + (v.sub ? " (" + v.sub + ")" : "")];
+    if (v.station) {
+      lines.push("IPU " + v.api + " (" + v.cat.label + ")" + (v.isStation ? "" : v.isState ? " at " + v.station.name + ", the highest station now" :
+        " at " + v.station.name + " station, " + (v.km < 1 ? "under 1 km" : Math.round(v.km) + " km") + " away") +
+        ". Official DOE reading for " + L.fmtDateTime(v.at) + ".");
+    }
+    if (v.status) lines.push("Schools: " + v.status + (v.statusKind === "official" ? " (" + v.statusNote + ")" : " (prediction, not an official announcement)") + ".");
+    lines.push("Live: " + v.url);
+    return lines.join("\n");
+  }
+
+  function sharePanelHTML() {
+    var canShare = !!navigator.share;
+    return '<p class="share-preview"></p><div class="share-btns">' +
+      '<a class="share-wa" id="share-wa" target="_blank" rel="noopener">Send on WhatsApp</a>' +
+      '<button type="button" id="share-img">' + (canShare ? "Share as image" : "Download image") + "</button>" +
+      '<button type="button" id="share-copy">Copy text</button>' +
+      (canShare ? '<button type="button" id="share-native">More…</button>' : "") + "</div>" +
+      '<p class="small muted share-note" id="share-msg"></p>';
+  }
+
+  function openShare() {
+    var v = S.view, panel = $("share-panel");
+    if (!v) return;
+    if (!panel.hidden) { panel.hidden = true; $("share-btn").setAttribute("aria-expanded", "false"); return; }
+    panel.innerHTML = sharePanelHTML();
+    var text = shareText(v);
+    panel.querySelector(".share-preview").textContent = text;
+    $("share-wa").href = "https://wa.me/?text=" + encodeURIComponent(text);
+    $("share-copy").addEventListener("click", function () {
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { $("share-msg").textContent = "Copied."; })
+        .catch(function () { $("share-msg").textContent = "Copy is not available here; select the text above instead."; });
+    });
+    if ($("share-native")) $("share-native").addEventListener("click", function () {
+      navigator.share({ title: v.title + ": IPU " + (v.api || ""), text: text }).catch(function () { /* cancelled */ });
+    });
+    $("share-img").addEventListener("click", function () { shareImage(v); });
+    panel.hidden = false;
+    $("share-btn").setAttribute("aria-expanded", "true");
+  }
+
+  function wrapText(ctx, text, maxW) {
+    var words = String(text).split(" "), lines = [], line = "";
+    words.forEach(function (w) {
+      var t = line ? line + " " + w : w;
+      if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
+    });
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  /* A 1080 x 1350 image card, drawn on a canvas in the current theme. */
+  function drawCard(v) {
+    var W = 1080, H = 1350, c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var x = c.getContext("2d"), neon = themeName() === "neon";
+    var paper = neon ? "#070b18" : "#ffffff", ink = neon ? "#eaf3ff" : "#172a35", ink2 = neon ? "#b9c8e8" : "#3c505a";
+    var disp = "'Bricolage Grotesque', 'Segoe UI', sans-serif", text = "'Instrument Sans', 'Segoe UI', sans-serif";
+    var col = v.cat ? v.cat.color : (neon ? "#4b5a80" : "#9aa9ae"), band = 0;
+    x.fillStyle = col; x.fillRect(0, 0, W, 14);
+    x.fillStyle = ink2; x.font = "600 34px " + text; x.fillText("IPU Malaysia", 72, 96);
+    x.fillStyle = ink; x.font = "800 64px " + disp;
+    var ty = 180;
+    wrapText(x, v.title, W - 144).slice(0, 2).forEach(function (l) { x.fillText(l, 72, ty); ty += 72; });
+    if (v.station) {
+      if (neon) { x.shadowColor = col; x.shadowBlur = 40; }
+      x.fillStyle = neon ? col : ink; x.font = "800 260px " + disp; x.fillText(String(v.api), 60, ty + 230);
+      x.shadowBlur = 0;
+      var nw = x.measureText(String(v.api)).width;
+      x.fillStyle = col; x.beginPath(); x.arc(60 + nw + 50, ty + 150, 22, 0, Math.PI * 2); x.fill();
+      x.fillStyle = ink; x.font = "700 52px " + disp;
+      wrapText(x, v.cat.label, W - (60 + nw + 86) - 60).slice(0, 2).forEach(function (l, i) { x.fillText(l, 60 + nw + 86, ty + 168 + i * 58); });
+      ty += 300;
+      x.fillStyle = ink2; x.font = "500 36px " + text;
+      var where = v.isStation ? "IPU at this DOE station." : v.isState ? "Highest now, at " + v.station.name + " station." : "IPU at " + v.station.name + " station, " + (v.km < 1 ? "under 1 km" : Math.round(v.km) + " km") + " away. Not measured at the place itself.";
+      wrapText(x, where, W - 144).slice(0, 2).forEach(function (l) { x.fillText(l, 72, ty); ty += 46; });
+      x.fillText("Official DOE reading for " + L.fmtDateTime(v.at) + ".", 72, ty);
+      band = ty + 34;
+      ty += 76;
+    }
+    if (v.status) {
+      var off = v.statusKind === "official", warn = v.statusKind === "may_close";
+      var bg = off || warn ? (neon ? "rgba(255,61,129,.16)" : "#fbeae6") : (neon ? "rgba(25,227,177,.10)" : "#e8f4ec");
+      var bd = off || warn ? (neon ? "#ff3d81" : "#b42318") : (neon ? "#19e3b1" : "#6fae7e");
+      x.font = "700 50px " + disp;
+      var sl = wrapText(x, v.status, W - 200).slice(0, 3);
+      x.font = "500 30px " + text;
+      var nl = wrapText(x, v.statusNote, W - 200).slice(0, 2);
+      var bh = (off ? 120 : 50) + sl.length * 60 + 16 + nl.length * 40 + 30;
+      x.fillStyle = bg; x.strokeStyle = bd; x.lineWidth = 5;
+      x.beginPath(); x.roundRect ? x.roundRect(60, ty, W - 120, bh, 28) : x.rect(60, ty, W - 120, bh); x.fill(); x.stroke();
+      if (off) {
+        x.fillStyle = bd; x.beginPath(); x.roundRect ? x.roundRect(96, ty + 34, 190, 54, 27) : x.rect(96, ty + 34, 190, 54); x.fill();
+        x.fillStyle = neon ? "#1a0410" : "#ffffff"; x.font = "700 30px " + text; x.fillText("OFFICIAL", 128, ty + 72);
+      }
+      var sy = ty + (off ? 120 : 50) + 44;
+      x.fillStyle = ink; x.font = "700 50px " + disp;
+      sl.forEach(function (l) { x.fillText(l, 96, sy); sy += 60; });
+      sy += 6;
+      x.fillStyle = ink2; x.font = "500 30px " + text;
+      nl.forEach(function (l) { x.fillText(l, 96, sy); sy += 40; });
+      ty += bh + 50;
+    }
+    x.fillStyle = ink2; x.font = "500 30px " + text;
+    wrapText(x, "Readings: Department of Environment Malaysia (APIMS). Official closures: Bernama reports. Predictions are not closure announcements.", W - 144)
+      .forEach(function (l) { x.fillText(l, 72, ty); ty += 42; });
+    x.fillStyle = ink2; x.font = "500 28px " + text; x.fillText("Live, updated every hour:", 72, H - 124);
+    x.fillStyle = ink; x.font = "700 34px " + text; x.fillText(location.host + location.pathname.replace(/\/$/, ""), 72, H - 80);
+    // background last, behind everything drawn above
+    x.globalCompositeOperation = "destination-over";
+    x.fillStyle = col; x.globalAlpha = neon ? 0.18 : 0.12; x.fillRect(0, 0, W, band || 300); x.globalAlpha = 1;
+    x.fillStyle = paper; x.fillRect(0, 0, W, H);
+    x.globalCompositeOperation = "source-over";
+    return c;
+  }
+
+  function shareImage(v) {
+    var go = function () {
+      var c = drawCard(v), name = "ipu-" + String(v.title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".png";
+      c.toBlob(function (blob) {
+        if (!blob) { $("share-msg").textContent = "The image could not be made on this device."; return; }
+        var file = typeof File === "function" ? new File([blob], name, { type: "image/png" }) : null;
+        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: v.title, text: shareText(v) }).catch(function () { /* cancelled */ });
+        } else {
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob); a.download = name;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+          $("share-msg").textContent = "Image saved. You can attach it in WhatsApp.";
+        }
+      }, "image/png");
+    };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(go); else go();
+  }
+
+  // ---- lobby screen: one place, full screen, refreshes itself
+
+  var WAKE = null;
+  function keepAwake() {
+    if (!navigator.wakeLock || !S.lobbyOn) return;
+    navigator.wakeLock.request("screen").then(function (l) { WAKE = l; }).catch(function () { WAKE = null; });
+  }
+
+  function openLobby() {
+    if (!S.view) return;
+    S.lobbyOn = true;
+    document.body.classList.add("lobby-open");
+    $("lobby").hidden = false;
+    renderLobby();
+    var el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(function () { /* not allowed: stay as an overlay */ });
+    keepAwake();
+    if (location.hash.indexOf("screen=1") < 0) { try { history.replaceState(null, "", location.hash + (location.hash ? "&" : "#") + "screen=1"); } catch (e) { /* ignore */ } }
+    $("lobby-exit").focus();
+  }
+
+  function closeLobby() {
+    S.lobbyOn = false;
+    document.body.classList.remove("lobby-open");
+    $("lobby").hidden = true;
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
+    if (WAKE) { WAKE.release().catch(function () {}); WAKE = null; }
+    try { history.replaceState(null, "", location.hash.replace(/&?screen=1/, "") || location.pathname); } catch (e) { /* ignore */ }
+  }
+
+  function renderLobby() {
+    var v = S.view, box = $("lobby-body"), n = now();
+    if (!v || !box) return;
+    var col = v.cat ? v.cat.color : "var(--marker-off)";
+    $("lobby").style.setProperty("--lc", col);
+    var stale = S.data && L.freshness(S.data, n).stale;
+    box.innerHTML = '<p class="lb-title">' + esc(v.title) + "</p>" +
+      (v.station ? '<div class="lb-reading"><span class="lb-num">' + esc(v.api) + '</span><span class="lb-meta"><span class="lb-cat"><i></i>' + esc(v.cat.label) + "</span>" +
+        '<span class="lb-where">' + esc(v.isStation ? "IPU at this DOE station" : v.isState ? "Highest now, at " + v.station.name : "IPU at " + v.station.name + " station, " + (v.km < 1 ? "under 1 km" : Math.round(v.km) + " km") + " away") +
+        "</span></span></div>" : '<p class="lb-none">No current official reading</p>') +
+      (v.status ? '<div class="lb-status ' + esc(v.statusKind) + '">' + (v.statusKind === "official" ? '<span class="off-chip">Official</span>' : "") +
+        "<b>" + esc(v.status) + "</b><span>" + esc(v.statusNote) + "</span></div>" : "") +
+      '<p class="lb-foot">' + (v.at ? "Official DOE reading for " + esc(L.fmtDateTime(v.at)) + ". " : "") +
+      (stale ? "<b>Data may be outdated.</b> " : "") + "Refreshes by itself. " + esc(location.host + location.pathname) + "</p>";
+    $("lobby-clock").textContent = L.fmtTime(n);
   }
 
   // ================================================================ charts
@@ -2178,7 +2433,13 @@
     });
     $("places-btn").addEventListener("click", placeSearch);
     $("loc-btn").addEventListener("click", useMyLocation);
-    $("sel-close").addEventListener("click", clearSelection);
+    $("sel-close").addEventListener("click", function () { $("share-panel").hidden = true; clearSelection(); });
+    $("share-btn").addEventListener("click", openShare);
+    $("lobby-btn").addEventListener("click", openLobby);
+    $("lobby-exit").addEventListener("click", closeLobby);
+    document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && S.lobbyOn) closeLobby(); });
+    document.addEventListener("visibilitychange", function () { if (!document.hidden && S.lobbyOn) { keepAwake(); renderLobby(); } });
+    setInterval(function () { if (S.lobbyOn) $("lobby-clock").textContent = L.fmtTime(now()); }, 15000);
     $("map-home").addEventListener("click", flyHome);
     $("theme-btn").addEventListener("click", function () { applyTheme(themeName() === "neon" ? "light" : "neon"); });
     $("a11y-btn").addEventListener("click", function (ev) {
@@ -2255,6 +2516,7 @@
       S.sel = readHash();
       renderAll();
       if (S.sel) renderSelection(true);
+      if (S.sel && S.lobbyWanted) setTimeout(function () { if (S.view) openLobby(); }, 800);
       getJSON("data/dosm_monthly.json").then(function (d) { S.dosm = d; }).catch(function () { S.dosm = null; }).then(renderDosm);
       getJSON("data/boundaries.json").then(function (b) {
         S.bounds = b;

@@ -135,6 +135,16 @@
     return age <= STALE_HOURS && age > -1;
   }
 
+  /* Official PM2.5 concentrations carry their own hour (DOE's map can lag the hourly
+     table). Returns that hour when the values are recent enough to show, else null. */
+  function pm25Time(st, now) {
+    if (!st || typeof st.pm25_24h !== "number") return null;
+    var t = parseTime(st.pm25_at || (st.source === "current" ? st.observed : null));
+    if (!t) return null;
+    var age = hoursBetween(t, now);
+    return age <= STALE_HOURS && age > -1 ? t : null;
+  }
+
   // ------------------------------------------------------------ distance & matching
 
   function haversineKm(lat1, lon1, lat2, lon2) {
@@ -778,7 +788,7 @@
     isAllowedSource: isAllowedSource, windHistAt: windHistAt, backTrajectory: backTrajectory,
     regionOf: regionOf, pathRegions: pathRegions, firesNearPath: firesNearPath, coverageZones: coverageZones, inPoly: inPoly, STALE_HOURS: STALE_HOURS, CATEGORIES: CATEGORIES, categoryFor: categoryFor, pollutantName: pollutantName,
     parseTime: parseTime, mytDateKey: mytDateKey, fmtTime: fmtTime, fmtDateTime: fmtDateTime, fmtDayKey: fmtDayKey,
-    addDaysKey: addDaysKey, weekdayOfKey: weekdayOfKey, ago: ago, freshness: freshness, stationCurrent: stationCurrent,
+    addDaysKey: addDaysKey, weekdayOfKey: weekdayOfKey, ago: ago, freshness: freshness, stationCurrent: stationCurrent, pm25Time: pm25Time,
     haversineKm: haversineKm, byDistance: byDistance, matchStations: matchStations, noSchoolReason: noSchoolReason,
     predict: predict, stateSummary: stateSummary, norm: norm, searchLocal: searchLocal, nationalSummary: nationalSummary,
     stateKey: stateKey, sameState: sameState, tidy: tidy,

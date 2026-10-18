@@ -73,6 +73,13 @@
         <h2 id="sel-title">Selected location</h2>
         <button id="sel-close" type="button" class="text-btn">Close</button>
       </div>
+      <div class="sel-actions">
+        <button id="share-btn" type="button" class="act-btn" aria-expanded="false" aria-controls="share-panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="19" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m8.3 10.8 7.4-4.4M8.3 13.2l7.4 4.4" stroke="currentColor" stroke-width="1.8"/></svg>Share</button>
+        <button id="lobby-btn" type="button" class="act-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Lobby screen</button>
+      </div>
+      <div id="share-panel" class="share-panel" hidden></div>
       <div id="loc-info"></div>
       <div id="prediction" class="prediction"></div>
       <div id="trend"></div>
@@ -137,6 +144,10 @@
       <p class="credit">Created by Ashraviinraj Thinagaraj.</p>
     </footer>
   </main>
+</div>
+<div id="lobby" class="lobby" hidden role="dialog" aria-label="Lobby screen">
+  <div class="lobby-top"><span class="lobby-brand">IPU Malaysia</span><span id="lobby-clock" class="lobby-clock"></span><button id="lobby-exit" type="button" class="lobby-exit">Exit</button></div>
+  <div id="lobby-body" class="lobby-body" aria-live="polite"></div>
 </div>
 <div id="tip" class="tip" role="tooltip" hidden></div>
 <p id="a11y-live" class="visually-hidden" aria-live="polite"></p>

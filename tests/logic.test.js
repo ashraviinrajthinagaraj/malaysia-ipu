@@ -344,3 +344,12 @@ test("sound: higher readings give higher pitch and a harsher tone above 200", ()
   assert.equal(L.toneFor(150).wave, "triangle");
   assert.equal(L.toneFor(210).wave, "square");
 });
+
+test("PM2.5 values keep their own hour and are hidden when old", () => {
+  const base = st("A", "A", "Selangor", 3, 101.5, 150, "2026-10-17T14:00:00+08:00");
+  assert.equal(L.pm25Time({ ...base, source: "current", pm25_1h: 90, pm25_24h: 80 }, NOW).toISOString(), "2026-10-17T06:00:00.000Z");
+  assert.equal(L.pm25Time({ ...base, source: "hourly", pm25_1h: 90, pm25_24h: 80, pm25_at: "2026-10-17T13:00:00+08:00" }, NOW).toISOString(), "2026-10-17T05:00:00.000Z");
+  assert.equal(L.pm25Time({ ...base, source: "hourly", pm25_1h: 90, pm25_24h: 80 }, NOW), null);
+  assert.equal(L.pm25Time({ ...base, pm25_24h: 80, pm25_at: "2026-10-17T10:00:00+08:00" }, NOW), null);
+  assert.equal(L.pm25Time({ ...base, pm25_24h: null, pm25_at: "2026-10-17T14:00:00+08:00" }, NOW), null);
+});

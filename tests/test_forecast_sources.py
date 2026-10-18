@@ -81,9 +81,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(locs if len(locs) > 1 else locs[0])
         if u.path.endswith("/forecast") and "hourly" in q:
             lats, lons = q["latitude"][0].split(","), q["longitude"][0].split(",")
-            start = (NOW - timedelta(hours=8)).replace(minute=0) - timedelta(days=3)
+            past, days = int(q["past_days"][0]), int(q["forecast_days"][0])
+            start = (NOW - timedelta(hours=8)).replace(minute=0) - timedelta(days=past)
             start = start.replace(hour=0)
-            ts = [start + timedelta(hours=i) for i in range(5 * 24)]
+            ts = [start + timedelta(hours=i) for i in range((past + days) * 24)]
             locs = []
             for a, b in zip(lats, lons):
                 n = len(ts)
@@ -245,6 +246,16 @@ class SourcesTests(Base):
         self.assertEqual(h["v"][-1][g["nx"] - 1], 20)                      # far east: 10 m wind from the S
         self.assertGreater(h["levels_used"]["10m"], 0)
         self.assertEqual(self.load()["wind_history"]["status"], "ok")
+
+    def test_wind_forecast_for_smoke_arrival(self):
+        self.run_script("fetch_sources.py")
+        f = json.loads((self.dir / "data" / "wind_forecast.json").read_text())
+        now_min = int((NOW - timedelta(hours=8)).replace(tzinfo=timezone.utc).timestamp() // 60)
+        self.assertLessEqual(f["times"][0], now_min)                       # starts at or before now
+        self.assertGreaterEqual(f["times"][-1], now_min + 47 * 60)        # about 48 hours ahead
+        self.assertLessEqual(f["times"][-1], now_min + 48 * 60)
+        self.assertEqual(len(f["u"]), len(f["times"]))
+        self.assertEqual(f["u"][0][0], 35)
 
     def test_fires_unreachable_keeps_only_recent_previous(self):
         self.run_script("fetch_sources.py")

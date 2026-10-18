@@ -1,0 +1,41 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//IPU Malaysia//Haze school closures//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Haze school closures: Malaysia (IPU Malaysia)
+X-WR-CALDESC:Official haze school closures as reported by Bernama\, from th
+ e IPU Malaysia dashboard (an independent site\, not an official service). 
+ Confirm with your school or JPN.
+X-WR-TIMEZONE:Asia/Kuala_Lumpur
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-PUBLISHED-TTL:PT1H
+BEGIN:VEVENT
+UID:johor-2026-10-19@malaysia-ipu
+DTSTAMP:20261018T004500Z
+LAST-MODIFIED:20261018T004500Z
+DTSTART;VALUE=DATE:20261019
+DTEND;VALUE=DATE:20261024
+SUMMARY:Schools closed (haze): Johor
+DESCRIPTION:All schools and educational institutions throughout Johor.\nHom
+ e-based teaching and learning (PdPR) continues.\nPrivate educational insti
+ tutions and childcare centres decide for themselves whether to open\; thos
+ e that open must operate indoors with face masks.\nLimited exemptions may 
+ be considered for students sitting exams or assessments\, coordinated with
+  the Johor State Education Department (JPNJ).\nFive more days starting Mon
+ day 19 October\, which ends on Friday 23 October. Reopening is reviewed be
+ fore then.\nExtends the closure of all Johor schools from 12 to 16 October
+ .\nAnnounced by Dr Muhammad Naqib Md Ghazali\, Johor Education and Informa
+ tion Committee chairman\, after a meeting of the Johor Haze Management Coo
+ rdination Committee on 2026-10-17.\nReported by Bernama: Haze: Schools\, e
+ ducational institutions in Johor to close for another five days from Monda
+ y https://www.bernama.com/en/general/news.php?id=2621869\nReported by Bern
+ ama: Jerebu: Sekolah\, institusi pendidikan Johor ditutup lima hari lagi b
+ ermula Isnin https://www.bernama.com/bm/am/news.php?id=2621868\nFrom the I
+ PU Malaysia dashboard (independent\, not an official service): https://ash
+ raviinrajthinagaraj.github.io/malaysia-ipu/
+URL:https://www.bernama.com/en/general/news.php?id=2621869
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+END:VCALENDAR

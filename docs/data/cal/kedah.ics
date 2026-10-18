@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//IPU Malaysia//Haze school closures//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Haze school closures: Kedah (IPU Malaysia)
+X-WR-CALDESC:Official haze school closures as reported by Bernama\, from th
+ e IPU Malaysia dashboard (an independent site\, not an official service). 
+ Confirm with your school or JPN.
+X-WR-TIMEZONE:Asia/Kuala_Lumpur
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-PUBLISHED-TTL:PT1H
+END:VCALENDAR

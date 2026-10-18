@@ -126,6 +126,11 @@ These two features are kept apart from the official data and are labelled on the
 - **Across the border:** neighbouring districts whose school status differs for the same day: an official closure (Bernama) on one side only, or, when neither side has one, the closure level reached at one side's reference station only (a prediction). Neighbours come from `docs/data/borders.json`, computed once from the district boundaries by `scripts/build_borders.py` (rerun it only if `boundaries.json` changes).
 - **What if the rule were different?** applies another rule (the earlier 8–14 Oct rule, 150, or any level and number of days) to the same official readings, for today and the last 7 days, and can mark the stations on the map. It uses `docs/data/daily.json`: the highest hourly IPU per station per day, kept for 8 days by `fetch_apims.py`, which fills older days once from DOE's hourly table for that day. It is a "what if", not a prediction, and counts stations, not schools.
 
+## Calendar feeds and smoke on the way
+
+- **Calendar feeds:** `scripts/build_calendars.py` turns the Bernama-only closure list into one subscribable calendar per state plus one for all states (`docs/data/cal/*.ics`, rebuilt on every run, changed only when the announcements change). The closures section has Subscribe, Google Calendar, Outlook and download buttons. Feed address: `https://ashraviinrajthinagaraj.github.io/malaysia-ipu/data/cal/johor.ics` (other states: see `data/cal/index.json`).
+- **Smoke on the way (forecast estimate):** `fetch_sources.py` also saves the next 48 hours of forecast wind about 800 m up (`docs/data/wind_forecast.json`, refreshed every 3 hours). The page groups today's fire hotspots into areas (half-degree cells with 3 or more hotspots), follows the air over each area forward through the forecast wind, and reports when it first passes within 50 km of a place or station. Shown on the station or place card, per state in "Where the haze comes from", and as dashed paths on the map. It says where air over fire areas is heading, not how much smoke it carries or what the IPU will be.
+
 ## Files
 
 ```
@@ -140,11 +145,14 @@ docs/                    the website (published to GitHub Pages)
   data/dosm_monthly.json DOSM history (written by the job)
   data/daily.json        highest IPU per station per day, last 8 days (written by the job)
   data/borders.json      neighbouring districts (from scripts/build_borders.py)
+  data/cal/              calendar feeds of official closures (from scripts/build_calendars.py)
+  data/wind_forecast.json  next 48 h of wind for "smoke on the way" (written by the job)
 scripts/
   fetch_apims.py         reads APIMS; keeps old data and marks it failed if DOE is unreachable
   fetch_dosm.py          downloads DOSM monthly data (weekly)
   build_schools.py       converts the KPM school list (.xlsx/.csv)
   build_borders.py       finds neighbouring districts in boundaries.json (run once)
+  build_calendars.py     builds the closure calendar feeds (every run)
 data_sources/schools/    put the KPM school list here
 tests/                   python3 -m unittest discover -s tests ; node --test tests/logic.test.js
 .github/workflows/update.yml   the hourly job

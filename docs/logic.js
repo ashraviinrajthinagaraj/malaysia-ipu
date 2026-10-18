@@ -515,10 +515,14 @@
 
   // Rough outlines, only for naming where a path or a fire is ("over Sumatra").
   var REGIONS = [
+    { name: "Bangka and Belitung", poly: [[105.1, -1.4], [106.9, -1.4], [108.4, -2.4], [108.4, -3.4], [107.4, -3.4], [106.0, -3.1], [105.1, -2.2], [105.1, -1.4]] },
     { name: "Peninsular Malaysia", poly: [[100.1, 6.5], [101.0, 6.9], [102.4, 6.3], [103.5, 4.6], [104.4, 2.6], [104.4, 1.3], [103.4, 1.2], [101.4, 2.5], [100.4, 4.0], [100.1, 6.5]] },
     { name: "Sumatra", poly: [[95.2, 5.8], [97.6, 5.3], [99.6, 3.4], [101.4, 2.2], [103.6, 0.2], [104.7, -1.6], [106.3, -3.1], [105.9, -5.9], [104.4, -5.9], [102.2, -4.1], [100.3, -1.1], [98.6, 1.5], [96.9, 3.0], [95.2, 5.8]] },
     { name: "Borneo", poly: [[108.6, 1.1], [109.6, 2.1], [111.0, 2.0], [113.4, 3.9], [115.0, 5.1], [116.4, 7.1], [119.4, 5.4], [118.1, 4.3], [117.9, 1.0], [116.6, -2.0], [116.1, -4.1], [113.0, -3.6], [110.1, -3.0], [109.0, -1.0], [108.6, 1.1]] },
-    { name: "Java", poly: [[105.2, -6.0], [106.5, -5.8], [108.5, -6.3], [111.0, -6.3], [112.7, -6.8], [114.6, -7.7], [114.4, -8.7], [111.0, -8.3], [108.0, -7.8], [105.4, -6.9], [105.2, -6.0]] }
+    { name: "Java", poly: [[105.2, -6.0], [106.5, -5.8], [108.5, -6.3], [111.0, -6.3], [112.7, -6.8], [114.6, -7.7], [114.4, -8.7], [111.0, -8.3], [108.0, -7.8], [105.4, -6.9], [105.2, -6.0]] },
+    { name: "Sulawesi", poly: [[118.7, -6.2], [121.6, -6.2], [121.6, 1.9], [118.7, 1.9], [118.7, -6.2]] },
+    { name: "southern Thailand", poly: [[97.5, 5.6], [103.0, 5.6], [103.0, 10.5], [97.5, 10.5], [97.5, 5.6]] },
+    { name: "the southern Philippines", poly: [[116.8, 7.3], [121.6, 7.3], [121.6, 10.5], [116.8, 10.5], [116.8, 7.3]] }
   ];
   function inPoly(x, y, poly) {
     var inside = false;
@@ -573,6 +577,88 @@
     });
     return { count: hits.length, indexes: hits,
              byRegion: Object.keys(byRegion).map(function (r) { return { name: r, count: byRegion[r] }; }).sort(function (a, b) { return b.count - a.count; }) };
+  }
+
+  // ------------------------------------------------------------ smoke on the way (forecast winds, an estimate)
+
+  /* Fire hotspots ([lon, lat, frp, ...]) grouped into cells of `deg` degrees, largest first. */
+  function fireClusters(fires, deg, minCount) {
+    deg = deg || 0.5; minCount = minCount || 3;
+    var cells = {};
+    (fires || []).forEach(function (f) {
+      var k = Math.floor(f[0] / deg) + ":" + Math.floor(f[1] / deg);
+      var c = cells[k] || (cells[k] = { lon: 0, lat: 0, count: 0, frp: 0 });
+      c.lon += f[0]; c.lat += f[1]; c.count += 1; c.frp += f[2] || 0;
+    });
+    return Object.keys(cells).map(function (k) {
+      var c = cells[k];
+      return { lon: c.lon / c.count, lat: c.lat / c.count, count: c.count, frp: Math.round(c.frp), region: regionOf(c.lon / c.count, c.lat / c.count) };
+    }).filter(function (c) { return c.count >= minCount; })
+      .sort(function (a, b) { return b.count - a.count || b.frp - a.frp; });
+  }
+
+  /* Where the air now at (lon, lat) is heading: step forward through forecast wind
+     (midpoint method). Returns dense points [lon, lat, unixMinutes]. */
+  function forwardTrajectory(fc, lon, lat, startMin, hours, stepMin) {
+    hours = hours || 48; stepMin = stepMin || 15;
+    var t = startMin, M = 111320, dense = [[lon, lat, t]], dt = stepMin * 60;
+    var steps = Math.round(hours * 60 / stepMin);
+    for (var s = 1; s <= steps; s++) {
+      var w1 = windHistAt(fc, lon, lat, t);
+      if (!w1) break;
+      var c1 = Math.cos(lat * Math.PI / 180);
+      var mlon = lon + w1.u * dt / 2 / (M * c1), mlat = lat + w1.v * dt / 2 / M;
+      var w2 = windHistAt(fc, mlon, mlat, t + stepMin / 2);
+      if (!w2) break;
+      var c2 = Math.cos(mlat * Math.PI / 180);
+      lon += w2.u * dt / (M * c2);
+      lat += w2.v * dt / M;
+      t += stepMin;
+      dense.push([lon, lat, t]);
+    }
+    return dense;
+  }
+
+  /* For each target {id, lon, lat}: the earliest forecast time that air now over a fire
+     cluster passes within `km` of it. Clusters at the target itself are skipped (that is
+     local smoke, not smoke on the way). Returns null when the forecast does not cover now. */
+  function smokeArrivals(clusters, fc, targets, now, opts) {
+    opts = opts || {};
+    var km = opts.km || 50, hours = opts.hours || 48, maxC = opts.maxClusters || 40;
+    if (!fc || !fc.times || fc.times.length < 3) return null;
+    var t0 = Math.floor(now.getTime() / 60000), last = fc.times[fc.times.length - 1];
+    if (t0 < fc.times[0] || t0 > last - 60) return null;
+    var paths = (clusters || []).slice(0, maxC).map(function (c) {
+      return { cluster: c, dense: forwardTrajectory(fc, c.lon, c.lat, t0, Math.min(hours, (last - t0) / 60), 15) };
+    });
+    return { t0: t0, end: Math.min(last, t0 + hours * 60), km: km, paths: paths,
+             results: targets.map(function (tg) { return smokeHitsFor(paths, tg, km); }) };
+  }
+
+  /* Arrivals at one target {lon, lat} from forward paths made by smokeArrivals. */
+  function smokeHitsFor(paths, tg, km) {
+    km = km || 50;
+    var pad = km / 100;
+    var hits = [];
+    paths.forEach(function (p, pi) {
+      if (haversineKm(tg.lat, tg.lon, p.cluster.lat, p.cluster.lon) <= km * 1.5) return;
+      var d = p.dense;
+      for (var k = 1; k < d.length; k++) {
+        if (Math.abs(d[k][1] - tg.lat) > pad || Math.abs(d[k][0] - tg.lon) > pad * 1.1) continue;
+        if (haversineKm(d[k][1], d[k][0], tg.lat, tg.lon) <= km) {
+          hits.push({ path: pi, t: d[k][2], region: p.cluster.region, count: p.cluster.count });
+          break;
+        }
+      }
+    });
+    hits.sort(function (a, b) { return a.t - b.t; });
+    var by = {}, order = [];
+    hits.forEach(function (h) {
+      if (!by[h.region]) { by[h.region] = { name: h.region, count: 0, first: h.t }; order.push(h.region); }
+      by[h.region].count += h.count;
+    });
+    return { target: tg, hits: hits, earliest: hits.length ? hits[0].t : null,
+             regions: order.map(function (r) { return by[r]; }).sort(function (a, b) { return b.count - a.count; }) };
   }
 
   /* Coverage zones: the area closest to each station (Voronoi cells), computed in a
@@ -946,6 +1032,7 @@
     predict: predict, stateSummary: stateSummary, norm: norm, searchLocal: searchLocal, nationalSummary: nationalSummary,
     stateKey: stateKey, sameState: sameState, tidy: tidy,
     todaysReadings: todaysReadings, meets: meets,
+    fireClusters: fireClusters, forwardTrajectory: forwardTrajectory, smokeArrivals: smokeArrivals, smokeHitsFor: smokeHitsFor,
     dailyHighs: dailyHighs, ruleTriggers: ruleTriggers, SIM_RULES: SIM_RULES, simulateRule: simulateRule, borderSplits: borderSplits
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

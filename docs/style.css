@@ -649,6 +649,38 @@ body.lobby-open { overflow: hidden; }
   .bx-side { padding: 9px 9px; }
 }
 
+/* ---------------------------------------------------------------- smoke on the way (forecast estimate) */
+.smoke { margin-top: 22px; padding: 16px; border: 1.5px dashed var(--fc); border-radius: 16px; background: var(--fc-bg); }
+.smoke:empty { display: none; }
+.smoke .lead { color: var(--ink-2); }
+.smoke .lead b { color: var(--ink); }
+.smoke-ov { margin-top: 20px; }
+.smoke-list { display: grid; gap: 2px; margin: 4px 0 10px; }
+.smoke-row { display: grid; grid-template-columns: minmax(7rem, auto) minmax(0, 1fr) auto; gap: 2px 14px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line-2); font-size: .92rem; }
+.smoke-row span:first-of-type { color: var(--ink-2); }
+.smoke-when { font-weight: 600; }
+.smoke-row .muted { grid-column: 2 / -1; margin-top: -2px; }
+[data-theme="neon"] .smoke { box-shadow: 0 0 26px -12px var(--fc); }
+@media (max-width: 640px) {
+  .smoke-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .smoke-row span:first-of-type { grid-column: 1 / -1; order: 3; }
+  .smoke-row .muted { grid-column: 1 / -1; order: 4; }
+}
+
+/* ---------------------------------------------------------------- calendar feeds */
+.cal { margin-top: 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.cal h3 { margin: 0 0 4px; font-size: 1.02rem; }
+.cal-row { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin: 8px 0; }
+.cal-row select { font: inherit; padding: 7px 10px; border-radius: 10px; border: 1.5px solid var(--field-line); background: var(--paper); color: var(--ink); max-width: 100%; }
+.cal-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.cal-btn { display: inline-flex; align-items: center; border: 1.5px solid var(--field-line); border-radius: 999px; padding: 6px 12px; font-size: .85rem; font-weight: 600; color: var(--ink); text-decoration: none; background: var(--paper); }
+.cal-btn:first-child { background: var(--btn-bg); color: var(--btn-ink); border-color: var(--btn-bg); }
+.cal-btn:hover { border-color: var(--link); }
+.link-btn { border: 0; background: none; padding: 0; color: var(--link); text-decoration: underline; text-underline-offset: 2px; font-size: .875rem; }
+.cal-link-p { margin: 6px 0 0; }
+[data-theme="neon"] .cal { background: rgba(10, 16, 34, .6); }
+[data-theme="neon"] .cal-btn:first-child { box-shadow: 0 0 16px -4px var(--btn-bg); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

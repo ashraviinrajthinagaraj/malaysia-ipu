@@ -420,3 +420,33 @@ test("border splits: official closure on one side only, and the IPU rule on one 
   assert.equal(r.open.district, "Kampar");
   assert.equal(out2[0].type, "official");        // official splits come first
 });
+
+test("smoke on the way: forward paths from fire areas and arrival times", () => {
+  const t0 = Math.floor(NOW.getTime() / 60000);
+  const grid = { lon0: 93, lat0: -8, dlon: 1.5, dlat: 1.5, nx: 20, ny: 13 };
+  const times = [], u = [], v = [];
+  for (let h = -1; h <= 48; h++) {
+    times.push(Math.floor(t0 / 60) * 60 + h * 60);
+    u.push(new Array(grid.nx * grid.ny).fill(50));      // 5 m/s towards the east
+    v.push(new Array(grid.nx * grid.ny).fill(0));
+  }
+  const fc = { grid, times, u, v };
+  const fires = [];
+  for (let i = 0; i < 5; i++) fires.push([100.0 + i * 0.01, 3.0, 10]);       // a cluster west of the target
+  for (let i = 0; i < 4; i++) fires.push([101.5 + i * 0.01, 3.1, 10]);       // fires at the target itself
+  fires.push([110.0, 3.0, 5]);                                              // a single hotspot: not a cluster
+  const clusters = L.fireClusters(fires, 0.5, 3);
+  assert.equal(clusters.length, 2);
+  assert.equal(clusters[0].count, 5);
+  const res = L.smokeArrivals(clusters, fc, [{ id: "T", lon: 101.5, lat: 3.0 }, { id: "W", lon: 99.0, lat: 3.0 }], NOW, { km: 50, hours: 48 });
+  const hitT = res.results[0];
+  // about 117 km to cover at 18 km/h: roughly 6.5 hours; the fires at the target itself are skipped
+  const hours = (hitT.earliest - res.t0) / 60;
+  assert.ok(hours > 5.5 && hours < 7.5, String(hours));
+  assert.equal(hitT.hits.length, 1);
+  assert.equal(hitT.regions[0].name, clusters[0].region);
+  assert.equal(hitT.regions[0].count, 5);
+  assert.equal(res.results[1].earliest, null);                              // upwind: never reached
+  // a forecast that does not cover now is not used
+  assert.equal(L.smokeArrivals(clusters, { grid, times: times.map((t) => t + 600), u, v }, [{ lon: 101.5, lat: 3 }], NOW), null);
+});

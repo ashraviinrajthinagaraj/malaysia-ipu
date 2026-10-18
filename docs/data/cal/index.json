@@ -1,0 +1,91 @@
+{
+ "site": "https://ashraviinrajthinagaraj.github.io/malaysia-ipu/",
+ "note": "Bernama-reported official closures only.",
+ "feeds": [
+  {
+   "state": null,
+   "name": "All states",
+   "file": "all.ics"
+  },
+  {
+   "state": "Johor",
+   "name": "Johor",
+   "file": "johor.ics"
+  },
+  {
+   "state": "Kedah",
+   "name": "Kedah",
+   "file": "kedah.ics"
+  },
+  {
+   "state": "Kelantan",
+   "name": "Kelantan",
+   "file": "kelantan.ics"
+  },
+  {
+   "state": "Melaka",
+   "name": "Melaka",
+   "file": "melaka.ics"
+  },
+  {
+   "state": "Negeri Sembilan",
+   "name": "Negeri Sembilan",
+   "file": "negeri-sembilan.ics"
+  },
+  {
+   "state": "Pahang",
+   "name": "Pahang",
+   "file": "pahang.ics"
+  },
+  {
+   "state": "Perak",
+   "name": "Perak",
+   "file": "perak.ics"
+  },
+  {
+   "state": "Perlis",
+   "name": "Perlis",
+   "file": "perlis.ics"
+  },
+  {
+   "state": "Pulau Pinang",
+   "name": "Pulau Pinang",
+   "file": "pulau-pinang.ics"
+  },
+  {
+   "state": "Sabah",
+   "name": "Sabah",
+   "file": "sabah.ics"
+  },
+  {
+   "state": "Sarawak",
+   "name": "Sarawak",
+   "file": "sarawak.ics"
+  },
+  {
+   "state": "Selangor",
+   "name": "Selangor",
+   "file": "selangor.ics"
+  },
+  {
+   "state": "Terengganu",
+   "name": "Terengganu",
+   "file": "terengganu.ics"
+  },
+  {
+   "state": "W.P. Kuala Lumpur",
+   "name": "W.P. Kuala Lumpur",
+   "file": "kuala-lumpur.ics"
+  },
+  {
+   "state": "W.P. Labuan",
+   "name": "W.P. Labuan",
+   "file": "labuan.ics"
+  },
+  {
+   "state": "W.P. Putrajaya",
+   "name": "W.P. Putrajaya",
+   "file": "putrajaya.ics"
+  }
+ ]
+}

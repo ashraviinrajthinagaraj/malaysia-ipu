@@ -12,6 +12,9 @@ And docs/data/wind_history.json:
   hourly low-level wind (925 hPa, about 800 m up, where smoke travels; 10 m
   where 925 hPa is missing) for the past 3 days on a 1.5-degree grid. The
   page uses it to trace where the air arriving at a place came from.
+And docs/data/wind_forecast.json:
+  the same wind for the next 48 hours (forecast), used to estimate where air
+  now over fire areas is heading ("smoke on the way"). A model forecast.
 Fires are read every run; wind at most every 3 hours. Python standard library only.
 """
 import csv
@@ -32,6 +35,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("IPU_DATA_DIR", ROOT / "docs" / "data"))
 OUT = DATA_DIR / "sources.json"
 HISTORY = DATA_DIR / "wind_history.json"
+FORECAST = DATA_DIR / "wind_forecast.json"
+FORECAST_HOURS = 48
 
 FIRMS_BASE = os.environ.get("FIRMS_BASE", "https://firms.modaps.eosdis.nasa.gov/data/active_fire")
 FIRMS_FILES = [
@@ -206,7 +211,7 @@ def collect_history(now):
             "longitude": ",".join(f"{p[1]:.2f}" for p in part),
             "hourly": "wind_speed_925hPa,wind_direction_925hPa,wind_speed_10m,wind_direction_10m",
             "wind_speed_unit": "ms", "timezone": "GMT",
-            "past_days": HISTORY_DAYS, "forecast_days": 1,
+            "past_days": HISTORY_DAYS, "forecast_days": 3,
         })))
         if len(rows) != len(part):
             raise RuntimeError(f"Open-Meteo returned {len(rows)} locations for {len(part)}")
@@ -237,11 +242,23 @@ def collect_history(now):
             cols.append((u, v))
     if not times:
         raise RuntimeError("no hourly times in the wind answer")
-    # keep hours up to now (the trace starts at the newest hour that is not in the future)
+    # history: hours up to now (the trace starts at the newest hour that is not in the future)
+    # forecast: from the hour before now to FORECAST_HOURS ahead
     stamps = [int(datetime.fromisoformat(t).replace(tzinfo=timezone.utc).timestamp() // 60) for t in times]
     now_min = int(now.timestamp() // 60)
     keep = [k for k, m in enumerate(stamps) if m <= now_min]
-    return {
+    ahead = [k for k, m in enumerate(stamps) if now_min - 60 <= m <= now_min + FORECAST_HOURS * 60]
+    forecast = {
+        "status": "ok" if len(ahead) > 2 else "failed",
+        "source": "Open-Meteo forecast API, hourly wind forecast at 925 hPa (about 800 m up), 10 m where 925 hPa is missing. A weather model forecast, not a measurement.",
+        "url": "https://open-meteo.com/",
+        "fetched_at": now.astimezone(MYT).isoformat(),
+        "grid": HGRID, "units": "m/s x 10",
+        "times": [stamps[k] for k in ahead],
+        "u": [[cols[p][0][k] for p in range(len(cols))] for k in ahead],
+        "v": [[cols[p][1][k] for p in range(len(cols))] for k in ahead],
+    }
+    return forecast, {
         "status": "ok",
         "source": "Open-Meteo forecast API, hourly wind at 925 hPa (about 800 m up), 10 m where 925 hPa is missing. Weather model, not a measurement.",
         "url": "https://open-meteo.com/",
@@ -262,14 +279,17 @@ def update_history(now):
             return old.get("status")
     except (OSError, ValueError, KeyError, TypeError):
         old = None
-    log("Reading 3-day wind history (Open-Meteo)...")
+    log("Reading 3-day wind history and 2-day forecast (Open-Meteo)...")
     try:
-        hist = collect_history(now)
+        forecast, hist = collect_history(now)
     except (RuntimeError, ValueError) as err:
         log(f"  FAILED: {err}")
         return "failed"
     HISTORY.write_text(json.dumps(hist, separators=(",", ":")), encoding="utf-8")
     log(f"  {len(hist['times'])} hours, levels used: {hist['levels_used']}")
+    if forecast["status"] == "ok":
+        FORECAST.write_text(json.dumps(forecast, separators=(",", ":")), encoding="utf-8")
+        log(f"  wind forecast: {len(forecast['times'])} hours ahead")
     return "ok"
 
 

@@ -36,7 +36,7 @@
   var FIRE_MAX_AGE_MIN = 36 * 60;
   var REDUCE = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var S = { data: null, rule: null, daily: null, borders: null, splits: [], bordersAll: false, simRes: null, dosm: null, forecast: null, sources: null, ann: null, bounds: null, rr: null, unusual: {}, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
+  var S = { data: null, rule: null, windFc: null, windFcLoading: null, smoke: null, smokeHere: null, daily: null, borders: null, splits: [], bordersAll: false, simRes: null, dosm: null, forecast: null, sources: null, ann: null, bounds: null, rr: null, unusual: {}, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
             sel: null, lastPlaceQuery: 0, firstPaint: true };
   var M = { map: null, styleReady: false, introDone: false, markers: {}, pin: null, km: null,
             fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5, sourcesOn: false,
@@ -290,6 +290,15 @@
       map.addLayer({ id: "trace", type: "line", source: "trace", layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": T().trace, "line-width": 3 } });
     }
+    if (!map.getSource("smoke")) map.addSource("smoke", { type: "geojson", data: smokeGeo() });
+    if (!map.getLayer("smoke")) {
+      map.addLayer({ id: "smoke", type: "line", source: "smoke", filter: ["==", ["get", "end"], 0], layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": T().forecast, "line-width": 2, "line-opacity": 0.85, "line-dasharray": [1.4, 1.8] } }, "trace-case");
+    }
+    if (!map.getLayer("smoke-end")) {
+      map.addLayer({ id: "smoke-end", type: "circle", source: "smoke", filter: ["==", ["get", "end"], 1],
+        paint: { "circle-color": T().forecast, "circle-radius": 3.2, "circle-stroke-color": T().halo, "circle-stroke-width": 1 } }, "trace-case");
+    }
     if (!map.getSource("fire-hits")) map.addSource("fire-hits", { type: "geojson", data: fireHitsGeo() });
     if (!map.getLayer("fire-hits")) {
       map.addLayer({ id: "fire-hits", type: "circle", source: "fire-hits", paint: {
@@ -428,6 +437,7 @@
               (M.traceShown ? '<span><i class="wind-key" style="background:' + T().trace + ';height:3px"></i>Air path to the selected place (model)</span>'
                             : '<span><i class="wind-key" style="background:' + T().wind + '"></i>Surface wind (model)</span>');
     }
+    if (M.sourcesOn && M.smokeShown) html += '<span><i class="wind-key" style="height:0;background:none;border-top:3px dashed ' + T().forecast + '"></i>Smoke paths, next 48 h (forecast estimate)</span>';
     if (SIM.onMap) html += '<span><i class="sim-key"></i>Meets the simulated rule today</span>';
     if (M.pair) html += '<span><i class="wind-key" style="background:' + T().closedLine + ';height:3px"></i>' + (M.pairType === "official" ? "Officially closed side" : "Side where the closure level was reached") + '</span>' +
       '<span><i class="wind-key" style="background:' + T().zoneLine + ';height:3px"></i>Other side</span>';
@@ -760,8 +770,65 @@
       }).join("");
     }
     if (annStale()) html += '<p class="note">Announcements have not been checked as often as planned (last check ' + esc(checkedText()) + '), so a newer announcement may be missing.</p>';
+    html += calendarHTML();
     box.innerHTML = html;
     drawAllRR();
+    bindCalendar();
+  }
+
+  // ---- calendar feeds of official closures (docs/data/cal, built from the Bernama-only list)
+
+  function calFeeds() { return (S.calIndex && S.calIndex.feeds) || []; }
+
+  function calDefault() {
+    var feeds = calFeeds(), want = S.calState || (S.sel && (S.sel.state || (S.view && S.view.station && S.view.station.state))) || null;
+    if (!want && S.ann) {
+      var act = L.activeClosures(S.ann, now())[0], a = act && act.area;
+      want = a ? ((a.states && a.states[0]) || a.state || null) : null;
+    }
+    var f = want ? feeds.filter(function (x) { return x.state && L.sameState(x.state, want); })[0] : null;
+    return f || feeds[0] || null;
+  }
+
+  function calendarHTML() {
+    var feeds = calFeeds();
+    if (!feeds.length) return "";
+    var d = calDefault();
+    return '<div class="cal" id="cal"><h3>Get official closures in your calendar</h3>' +
+      '<p class="small muted">A calendar you subscribe to: new closures, extensions and early reopenings reported by Bernama appear by themselves.</p>' +
+      '<div class="cal-row"><select id="cal-state" aria-label="State for the calendar">' + feeds.map(function (f) {
+        return '<option value="' + esc(f.file) + '"' + (d && f.file === d.file ? " selected" : "") + ">" + esc(f.name) + "</option>";
+      }).join("") + '</select><div class="cal-btns" id="cal-btns"></div></div>' +
+      '<p class="small muted">Calendar apps check subscribed calendars on their own schedule, from every few minutes to about once a day (Google). Confirm with your school or JPN.</p></div>';
+  }
+
+  function calLinks(file) {
+    var base = location.origin + location.pathname.replace(/[^/]*$/, ""), https = base + "data/cal/" + file;
+    var webcal = https.replace(/^https?:/, "webcal:"), feed = calFeeds().filter(function (f) { return f.file === file; })[0];
+    var name = "Haze school closures: " + (feed ? feed.name : "Malaysia");
+    return '<a class="cal-btn" href="' + esc(webcal) + '">Subscribe (iPhone, Mac, Android apps)</a>' +
+      '<a class="cal-btn" target="_blank" rel="noopener" href="https://calendar.google.com/calendar/render?cid=' + encodeURIComponent(webcal) + '">Google Calendar</a>' +
+      '<a class="cal-btn" target="_blank" rel="noopener" href="https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(https) + "&name=" + encodeURIComponent(name) + '">Outlook</a>' +
+      '<a class="cal-btn" href="' + esc(https) + '" download>Download .ics</a>';
+  }
+
+  function bindCalendar() {
+    var sel = $("cal-state");
+    if (!sel) return;
+    var draw = function () { $("cal-btns").innerHTML = calLinks(sel.value); };
+    sel.addEventListener("change", function () {
+      var f = calFeeds().filter(function (x) { return x.file === sel.value; })[0];
+      S.calState = f ? f.state : null;
+      draw();
+    });
+    draw();
+  }
+
+  function openCalendarFor(state) {
+    S.calState = state;
+    renderClosures();
+    var c = $("cal");
+    if (c) c.scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "center" });
   }
 
   /* Districts covered by a closure today or tomorrow, as map features. */
@@ -935,6 +1002,7 @@
     renderLegend();
     renderSourcesSection();
     var traced = updateTraceDisplay();
+    if (on) loadWindFc().then(updateSmokeOnMap); else updateSmokeOnMap();
     if (on && fly) {
       if (traced) flyToTrace();
       else flyTo({ bounds: isMobile() ? [[96.5, -4.5], [118.5, 7.5]] : REGION_BOUNDS, maxZoom: 6, padding: isMobile() ? { top: 56, bottom: 64, left: 6, right: 6 } : null });
@@ -944,6 +1012,7 @@
   function updateSourcesOnMap() {
     if (M.map && M.styleReady && M.map.getSource("fires")) M.map.getSource("fires").setData(firesGeo());
     updateTraceDisplay();
+    updateSmokeOnMap();
   }
 
   // ================================================================ air path (where the air came from)
@@ -1071,6 +1140,150 @@
     box.innerHTML = html;
   }
 
+  // ================================================================ smoke on the way (forecast winds, an estimate)
+
+  var SMOKE_KM = 50;
+
+  function loadWindFc() {
+    if (S.windFc !== null) return Promise.resolve(S.windFc);
+    if (S.windFcLoading) return S.windFcLoading;
+    S.windFcLoading = getJSON("data/wind_forecast.json").then(function (f) {
+      var nowMin = Date.now() / 60000;
+      // used only while it covers now and at least 12 hours ahead
+      S.windFc = f && f.times && f.times.length > 2 && f.times[0] <= nowMin && f.times[f.times.length - 1] - nowMin >= 12 * 60 ? f : false;
+      return S.windFc;
+    }).catch(function () { S.windFc = false; return false; })
+      .then(function (f) { S.windFcLoading = null; return f; });
+    return S.windFcLoading;
+  }
+
+  /* Forward paths from today's fire areas and their arrivals at every station (cached ~10 min). */
+  function smokeAll() {
+    if (!S.windFc) return null;
+    var fires = freshFires(), key = S.windFc.fetched_at + "|" + fires.length + "|" + Math.floor(Date.now() / 600000);
+    if (S.smoke && S.smoke.key === key) return S.smoke;
+    var clusters = L.fireClusters(fires, 0.5, 3);
+    var targets = stations().filter(function (st) { return typeof st.lat === "number"; })
+      .map(function (st) { return { id: st.id, lon: st.lon, lat: st.lat, state: st.state, name: st.name }; });
+    var res = clusters.length ? L.smokeArrivals(clusters, S.windFc, targets, now(), { km: SMOKE_KM, hours: 48, maxClusters: 400 }) : null;
+    S.smoke = { key: key, clusters: clusters, res: res, fires: fires.length };
+    return S.smoke;
+  }
+
+  function smokeByState(sm) {
+    var by = {}, totals = {};
+    stations().forEach(function (st) { var k = L.stateKey(st.state); totals[k] = (totals[k] || 0) + 1; });
+    sm.res.results.forEach(function (r) {
+      if (r.earliest === null) return;
+      var k = L.stateKey(r.target.state), b = by[k] || (by[k] = { state: r.target.state, earliest: r.earliest, stations: 0, total: totals[k] || 0, regions: {} });
+      b.earliest = Math.min(b.earliest, r.earliest); b.stations += 1;
+      r.regions.forEach(function (g) { b.regions[g.name] = Math.max(b.regions[g.name] || 0, g.count); });
+    });
+    return Object.keys(by).map(function (k) {
+      var b = by[k];
+      b.regionList = Object.keys(b.regions).sort(function (x, y) { return b.regions[y] - b.regions[x]; });
+      return b;
+    }).sort(function (a, b) { return a.earliest - b.earliest; });
+  }
+
+  /* "around Mon 03:00 (in about 15 hours)", rounded to the hour: these are rough estimates. */
+  function arriveText(tMin, t0) {
+    var d = new Date(Math.round(tMin / 60) * 3600000), h = Math.max(1, Math.round((tMin - t0) / 60));
+    return "around " + L.weekdayOfKey(L.mytDateKey(d)) + " " + L.fmtTime(d) + " (in about " + h + " hour" + (h === 1 ? "" : "s") + ")";
+  }
+
+  function smokeTag() { return '<span class="fc-tag">Forecast estimate</span>'; }
+  function smokeNote() {
+    return '<p class="fc-note">Estimate from forecast winds about 800 m up (Open-Meteo), starting from fire areas NASA satellites detected in the last 24 hours. ' +
+      "It follows where the air now over those fires is heading; it does not say how much smoke it carries or what the IPU will be, and paths are less certain further ahead. Not official.</p>";
+  }
+
+  function renderSmoke() {
+    var box = $("smoke");
+    if (!box) return;
+    var sel = S.sel, pt = selPoint(sel), isState = sel && sel.type === "state";
+    if (!sel || (!pt && !isState)) { box.innerHTML = ""; box.className = ""; return; }
+    box.className = "smoke";
+    var head = '<div class="fc-head"><h3>Smoke on the way</h3>' + smokeTag() + "</div>";
+    if (S.windFc === null) { box.innerHTML = head + '<p class="muted">Loading the wind forecast…</p>'; loadWindFc().then(function () { renderSmoke(); updateSmokeOnMap(); }); return; }
+    if (!S.windFc) { box.innerHTML = head + '<p class="muted">The wind forecast is not available right now. It is refreshed with the hourly update.</p>'; return; }
+    var sm = smokeAll();
+    if (!sm || !sm.fires) { box.innerHTML = head + '<p class="muted">No recent satellite fire detections are available to follow.</p>'; return; }
+    if (!sm.res) { box.innerHTML = head + '<p class="muted">No fire areas with 3 or more hotspots were detected in the last 24 hours.</p>' + smokeNote(); return; }
+    var html = head, t0 = sm.res.t0;
+    if (isState) {
+      var st = smokeByState(sm).filter(function (b) { return L.sameState(b.state, sel.state); })[0];
+      html += st ? '<p class="lead">Air now over fire areas in <b>' + esc(listNames(st.regionList.slice(0, 3))) + "</b> is forecast to pass within " + SMOKE_KM + " km of " +
+          st.stations + " of the " + st.total + " monitoring stations in " + esc(sel.state) + ", first " + esc(arriveText(st.earliest, t0)) + ".</p>"
+        : '<p class="lead">In the forecast winds for the next 48 hours, air now over today\'s fire areas does not pass within ' + SMOKE_KM + " km of any monitoring station in " + esc(sel.state) + ".</p>";
+    } else {
+      var r = L.smokeHitsFor(sm.res.paths, { lon: pt.lon, lat: pt.lat }, SMOKE_KM);
+      S.smokeHere = r;
+      if (r.earliest !== null) {
+        html += '<p class="lead">Air now over fire areas in <b>' + esc(r.regions[0].name) + "</b> (" + r.regions[0].count.toLocaleString("en-MY") + " hotspots) is forecast to pass within " +
+          SMOKE_KM + " km of here " + esc(arriveText(r.regions[0].first, t0)) + ".</p>";
+        if (r.regions.length > 1) {
+          html += '<p class="lead">Also from ' + r.regions.slice(1, 3).map(function (g) { return "<b>" + esc(g.name) + "</b> (" + g.count.toLocaleString("en-MY") + " hotspots, " + esc(arriveText(g.first, t0).replace(/ \(.*\)$/, "")) + ")"; }).join(" and ") + ".</p>";
+        }
+      } else {
+        html += '<p class="lead">In the forecast winds for the next 48 hours, air now over today\'s ' + sm.clusters.length + " fire areas does not pass within " + SMOKE_KM + " km of here.</p>";
+      }
+    }
+    html += '<button type="button" class="trace-btn" id="smoke-show">Show smoke paths on the map</button>' + smokeNote();
+    box.innerHTML = html;
+    if (M.sourcesOn) updateSmokeOnMap();
+  }
+
+  function renderSmokeOverview() {
+    var box = $("smoke-ov");
+    if (!box) return;
+    var head = '<div class="fc-head"><h3>Smoke on the way, next 48 hours</h3>' + smokeTag() + "</div>";
+    if (S.windFc === null) { box.innerHTML = head + '<p class="muted">Loading the wind forecast…</p>'; loadWindFc().then(function () { renderSmokeOverview(); updateSmokeOnMap(); }); return; }
+    if (!S.windFc) { box.innerHTML = head + '<p class="muted">The wind forecast is not available right now.</p>'; return; }
+    var sm = smokeAll();
+    if (!sm || !sm.res) { box.innerHTML = head + '<p class="muted">No fire areas to follow right now.</p>'; return; }
+    var list = smokeByState(sm), t0 = sm.res.t0;
+    var html = head;
+    if (!list.length) {
+      html += '<p class="lead">In the forecast winds, air now over today\'s ' + sm.clusters.length + " fire areas does not reach any Malaysian monitoring station in the next 48 hours.</p>";
+    } else {
+      html += '<div class="smoke-list">' + list.map(function (b) {
+        return '<div class="smoke-row"><b>' + esc(b.state) + "</b><span>from " + esc(listNames(b.regionList.slice(0, 2))) + "</span><span class=\"smoke-when\">" + esc(arriveText(b.earliest, t0)) + "</span>" +
+          '<span class="muted small">' + b.stations + " of " + b.total + " station" + (b.total === 1 ? "" : "s") + "</span></div>";
+      }).join("") + "</div>";
+    }
+    box.innerHTML = html + smokeNote();
+  }
+
+  /* Forward paths on the map (with the haze-sources view): the ones reaching the selected place,
+     or with no place selected, the ones reaching any Malaysian station. */
+  function smokeGeo() {
+    var out = { type: "FeatureCollection", features: [] };
+    if (!M.sourcesOn || !S.windFc) return out;
+    var sm = smokeAll();
+    if (!sm || !sm.res) return out;
+    var idx = {}, pt = selPoint(S.sel);
+    if (pt) {
+      L.smokeHitsFor(sm.res.paths, { lon: pt.lon, lat: pt.lat }, SMOKE_KM).hits.forEach(function (h) { idx[h.path] = true; });
+    } else {
+      sm.res.results.forEach(function (r) { r.hits.forEach(function (h) { idx[h.path] = true; }); });
+    }
+    Object.keys(idx).forEach(function (i) {
+      var d = sm.res.paths[i].dense;
+      if (d.length < 2) return;
+      out.features.push({ type: "Feature", properties: { end: 0 }, geometry: { type: "LineString", coordinates: d.map(function (q) { return [q[0], q[1]]; }) } });
+      out.features.push({ type: "Feature", properties: { end: 1 }, geometry: { type: "Point", coordinates: [d[d.length - 1][0], d[d.length - 1][1]] } });
+    });
+    return out;
+  }
+
+  function updateSmokeOnMap() {
+    var g = smokeGeo();
+    M.smokeShown = g.features.length > 0;
+    if (M.map && M.styleReady && M.map.getSource("smoke")) M.map.getSource("smoke").setData(g);
+    renderLegend();
+  }
+
   // ================================================================ coverage zones ("which station covers me")
 
   function updateZones() {
@@ -1120,11 +1333,13 @@
           esc(L.windFrom(mu, mv)) + "</b> (weather model, " + esc(L.fmtDateTime(L.parseTime(w.fetched_at))) + ").</p></div>";
       }
     }
-    html += "</div><p>Smoke from fires upwind can be carried to Malaysia by these winds. The map shows where fires and winds are now; it does not trace actual smoke, and fire detections do not show how much smoke a fire makes.</p>" +
+    html += "</div><p>Smoke from fires upwind can be carried to Malaysia by these winds. The fires and winds on the map are as they are now; the dashed smoke paths are a forecast of where the air over fire areas is heading. None of this traces actual smoke, and fire detections do not show how much smoke a fire makes.</p>" +
       '<button type="button" class="src-btn2" id="src-show">' + (M.sourcesOn ? "Hide fires and wind on the map" : "Show fires and wind on the map") + "</button>" +
       '<p class="small muted">Fires: <a href="https://firms.modaps.eosdis.nasa.gov/" rel="noopener">NASA FIRMS</a> near-real-time VIIRS detections. ' + esc(f.note || "") +
-      " Wind: Open-Meteo 10 m wind, a model estimate. Neither is official IPU data.</p>";
+      " Wind: Open-Meteo 10 m wind, a model estimate. Neither is official IPU data.</p>" +
+      '<div id="smoke-ov" class="smoke smoke-ov"></div>';
     box.innerHTML = html;
+    renderSmokeOverview();
   }
 
   // ================================================================ forecast (estimate, never official)
@@ -1379,7 +1594,7 @@
     S.sel = null; setHash(null);
     clearSplit();
     renderSelection(false);
-    showPlace(null); markRef(null); updateZones(); updateTraceDisplay();
+    showPlace(null); markRef(null); updateZones(); updateTraceDisplay(); updateSmokeOnMap();
     if (M.sourcesOn) flyTo({ bounds: isMobile() ? [[96.5, -4.5], [118.5, 7.5]] : REGION_BOUNDS, maxZoom: 6, padding: isMobile() ? { top: 56, bottom: 64, left: 6, right: 6 } : null });
     else flyHome();
   }
@@ -1497,6 +1712,7 @@
     else $("trend").innerHTML = "";
     renderForecast($("forecast"), ref ? ref.station : st);
     renderAirPath();
+    renderSmoke();
     S.view = makeView(sel, title, sub, ref ? ref.station : (st && L.stationCurrent(st, n) ? st : null), ref ? ref.km : 0,
                       place, place.state || sel.state || (ref && ref.station.state) || (st && st.state), n, sel.type === "station");
     if (S.lobbyOn) renderLobby();
@@ -1591,7 +1807,8 @@
   function officialHTML(place, n) {
     if (!S.ann || !place || !place.state) return { closed: false, any: false, html: "" };
     var o = L.officialStatus(place, n, S.ann), html = "", stale = annStale();
-    var staleNote = stale ? '<p class="note">Announcements were last checked ' + esc(checkedText()) + ", later than planned, so a newer announcement may be missing.</p>" : "";
+    var staleNote = (stale ? '<p class="note">Announcements were last checked ' + esc(checkedText()) + ", later than planned, so a newer announcement may be missing.</p>" : "") +
+      (calFeeds().length ? '<p class="cal-link-p"><button type="button" class="link-btn cal-link" data-cal-state="' + esc(place.state) + '">Get official ' + esc(place.state) + " closures in your calendar</button></p>" : "");
     if (o.tomorrow) {
       var c = o.tomorrow, last = o.lastDay || c.to;
       var ufn = c.until_further_notice || (o.today && o.today.until_further_notice);
@@ -1731,8 +1948,9 @@
     S.view = makeView(sel, sel.state, sum.current.length + " stations with a current reading", sum.highest, 0, { state: sel.state }, sel.state, n, false, true);
     if (S.lobbyOn) renderLobby();
     renderAirPath();
+    renderSmoke();
     updateZones();
-    if (moveMap) updateTraceDisplay();
+    if (moveMap) { updateTraceDisplay(); updateSmokeOnMap(); }
 
     if (moveMap) {
       showPlace(null);
@@ -2616,12 +2834,13 @@
       getJSON("data/announcements.json").catch(function () { return null; }),
       getJSON("data/rule_reality.json").catch(function () { return null; }),
       getJSON("data/daily.json").catch(function () { return null; }),
-      S.borders ? Promise.resolve(S.borders) : getJSON("data/borders.json").catch(function () { return null; })
+      S.borders ? Promise.resolve(S.borders) : getJSON("data/borders.json").catch(function () { return null; }),
+      S.calIndex ? Promise.resolve(S.calIndex) : getJSON("data/cal/index.json").catch(function () { return null; })
     ]).then(function (r) {
-      S.rr = r[3]; S.daily = r[4]; S.borders = r[5];
+      S.rr = r[3]; S.daily = r[4]; S.borders = r[5]; S.calIndex = r[6];
       var newHist = r[1] && S.sources && r[1].generated_at !== S.sources.generated_at;
       S.forecast = r[0]; S.sources = r[1]; S.ann = r[2];
-      if (newHist) { S.windHist = null; S.trace = null; }
+      if (newHist) { S.windHist = null; S.trace = null; S.windFc = null; S.smoke = null; }
     });
   }
 
@@ -2711,6 +2930,22 @@
         updateTraceDisplay();
         flyToTrace();
         renderAirPath();
+        document.querySelector(".map-wrap").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
+      }
+      var calBtn = ev.target.closest(".cal-link");
+      if (calBtn) openCalendarFor(calBtn.getAttribute("data-cal-state"));
+      if (ev.target.closest("#smoke-show")) {
+        if (!M.sourcesOn) setSources(true, false);
+        loadWindFc().then(function () {
+          updateSmokeOnMap();
+          var g = smokeGeo(), pts = [];
+          g.features.forEach(function (f) { if (f.geometry.type === "LineString") pts = pts.concat(f.geometry.coordinates); });
+          var pt = selPoint(S.sel);
+          var hasPaths = g.features.length > 0;
+          if (pt) pts.push([pt.lon, pt.lat]);
+          if (hasPaths) flyTo({ bounds: boundsOf(pts), maxZoom: 7, padding: isMobile() ? { top: 70, bottom: 130, left: 30, right: 30 } : { top: 90, bottom: 120, left: 110, right: 110 } });
+          else flyTo({ bounds: isMobile() ? [[96.5, -4.5], [118.5, 7.5]] : REGION_BOUNDS, maxZoom: 6, padding: isMobile() ? { top: 56, bottom: 64, left: 6, right: 6 } : null });
+        });
         document.querySelector(".map-wrap").scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
       }
       if (ev.target.closest("#src-show")) {

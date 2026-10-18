@@ -3,6 +3,15 @@
 (function () {
   "use strict";
   var L = window.IPU;
+  var I18 = window.I18N || { lang: "en", t: function (s) { return s; }, set: function () {} };
+  function i18(s) { return I18.t(s); }      // every English text on the page goes through this
+  /* A text field from a data file in the page language: obj[key + "_ms"] in Bahasa Melayu when present. */
+  function loc(obj, key) {
+    if (!obj) return "";
+    var ms = I18.lang === "ms" ? obj[key + "_ms"] : null;
+    return ms !== null && ms !== undefined && ms !== "" ? ms : obj[key];
+  }
+  L.setLang(I18.lang, i18);
   var UPDATE_MINUTE = 20;                 // the GitHub workflow runs at minute 20 of every hour
   var REFRESH_MS = 10 * 60 * 1000;        // re-read data/latest.json every 10 minutes
   var NOMINATIM = "https://nominatim.openstreetmap.org/search";
@@ -68,7 +77,7 @@
   }
   function badge(api) {
     var c = cat(api);
-    if (!c) return '<span class="cat none">No current reading</span>';
+    if (!c) return i18('<span class="cat none">No current reading</span>');
     return '<span class="cat"><i style="' + swatch(c.color) + '"></i>' + esc(c.label) + "</span>";
   }
   function readingTime(iso, n) {
@@ -105,29 +114,29 @@
     var n = now(), box = $("status");
     box.className = "status";
     if (!S.data) {
-      box.innerHTML = '<span class="live-dot"></span><div class="banner bad">The readings file could not be loaded. If the site was just set up, wait for the first hourly update, then reload.</div>';
+      box.innerHTML = i18('<span class="live-dot"></span><div class="banner bad">The readings file could not be loaded. If the site was just set up, wait for the first hourly update, then reload.</div>');
       return;
     }
     var f = L.freshness(S.data, n);
     var fresh = stations().length && !f.stale;
     box.classList.add(fresh ? "is-live" : "is-stale");
     var html = '<span class="live-dot" aria-hidden="true"></span><span class="status-lines">' +
-      "<span>Readings for <b>" + esc(f.observation ? L.fmtDateTime(f.observation) : "—") + "</b></span>" +
-      "<span>Updated " + esc(f.lastSuccess ? L.ago(f.lastSuccess, n) : "never") + ", next around " + esc(L.fmtTime(nextUpdate(n))) + "</span></span>";
+      i18("<span>Readings for <b>") + esc(f.observation ? L.fmtDateTime(f.observation) : "—") + "</b></span>" +
+      i18("<span>Updated ") + esc(L.ago(f.lastSuccess, n)) + i18(", next around ") + esc(L.fmtTime(nextUpdate(n))) + "</span></span>";
     if (!stations().length) {
-      html += '<div class="banner">No readings have been retrieved yet. The first hourly update has not run or has not succeeded, so nothing here is a current reading.</div>';
+      html += i18('<div class="banner">No readings have been retrieved yet. The first hourly update has not run or has not succeeded, so nothing here is a current reading.</div>');
     } else if (f.stale) {
-      html += '<div class="banner bad"><b>Data may be outdated.</b> ' + esc(f.reasons.join(" ")) +
-        " The page shows the last successful update and marks old readings as outdated.</div>";
+      html += i18('<div class="banner bad"><b>Data may be outdated.</b> ') + esc(f.reasons.join(" ")) +
+        i18(" The page shows the last successful update and marks old readings as outdated.</div>");
     } else if (f.partial) {
-      html += '<div class="banner">Part of the last update failed. Affected stations keep their previous reading and show its time.</div>';
+      html += i18('<div class="banner">Part of the last update failed. Affected stations keep their previous reading and show its time.</div>');
     }
     if (S.ann) {
       L.activeClosures(S.ann, n).forEach(function (c) {
         var a = c.area || {}, st = (a.states && a.states[0]) || a.state || "";
         var started = c.from <= L.mytDateKey(n);
-        html += '<button type="button" class="closure-banner" data-state="' + esc(st) + '"><span class="off-chip">Official</span>' +
-          "Schools in " + esc(L.areaLabel(c)) + (started ? " closed " + esc(untilText(c)) : " close " + (c.until_further_notice ? "from " + esc(dayShort(c.from)) + " until further notice" : esc(rangeText(c.from, c.to)))) + "</button>";
+        html += '<button type="button" class="closure-banner" data-state="' + esc(st) + i18('"><span class="off-chip">Official</span>') +
+          i18("Schools in ") + esc(L.areaLabel(c)) + (started ? i18(" closed ") + esc(untilText(c)) : i18(" close ") + (c.until_further_notice ? i18("from ") + esc(dayShort(c.from)) + i18(" until further notice") : esc(rangeText(c.from, c.to)))) + "</button>";
       });
     }
     box.innerHTML = html;
@@ -161,7 +170,7 @@
 
   function initMap() {
     renderLegend();
-    if (!window.maplibregl) { mapUnavailable("The map could not be loaded. Search and the station list below still work."); return; }
+    if (!window.maplibregl) { mapUnavailable(i18("The map could not be loaded. Search and the station list below still work.")); return; }
     try {
       M.map = new maplibregl.Map({
         container: "map", style: T().style,
@@ -170,7 +179,7 @@
         dragRotate: false, pitchWithRotate: false, touchPitch: false, minZoom: 2, maxZoom: 16.5
       });
     } catch (e) {
-      mapUnavailable("This device cannot show the map (WebGL is turned off). Search and the station list below still work.");
+      mapUnavailable(i18("This device cannot show the map (WebGL is turned off). Search and the station list below still work."));
       return;
     }
     var map = M.map;
@@ -200,7 +209,7 @@
   function useFallback() {
     M.fallbackUsed = true;
     M.styleReady = false;
-    try { M.map.setStyle(fallbackStyle()); } catch (e) { mapUnavailable("The map could not be loaded."); }
+    try { M.map.setStyle(fallbackStyle()); } catch (e) { mapUnavailable(i18("The map could not be loaded.")); }
   }
 
   function zoomClass() {
@@ -345,7 +354,7 @@
         b.addEventListener("mouseenter", function (ev) {
           var st = M.markers[s.id].station, cc = L.stationCurrent(st, now());
           showTip("<b>" + esc(st.name) + "</b>, " + esc(st.state) + "<br>" +
-            (cc ? "IPU " + st.api + " (" + esc(cat(st.api).label) + ") at " + esc(readingTime(st.observed, now())) : "No current reading"), ev.clientX, ev.clientY);
+            (cc ? i18("IPU ") + st.api + " (" + esc(cat(st.api).label) + i18(") at ") + esc(readingTime(st.observed, now())) : i18("No current reading")), ev.clientX, ev.clientY);
         });
         b.addEventListener("mouseleave", hideTip);
         wrap.appendChild(b);
@@ -358,7 +367,7 @@
       m.btn.style.setProperty("--ci", c ? c.ink : T().offInk);
       m.btn.style.setProperty("--d", Math.round(700 + (s.lon - 99.6) / 19.7 * 1300) + "ms");
       m.btn.querySelector(".n").textContent = cur ? s.api : "–";
-      m.btn.setAttribute("aria-label", s.name + ", " + s.state + ": " + (cur ? "IPU " + s.api + ", " + c.label : "no current reading"));
+      m.btn.setAttribute("aria-label", s.name + ", " + s.state + ": " + (cur ? i18("IPU ") + s.api + ", " + c.label : i18("no current reading")));
     });
     Object.keys(M.markers).forEach(function (id) {
       if (!seen[id]) { M.markers[id].marker.remove(); delete M.markers[id]; }
@@ -387,7 +396,7 @@
       var w = document.createElement("div");
       w.className = "pin-wrap";
       w.innerHTML = '<div class="pin"></div><div class="pin-label"></div>';
-      w.querySelector(".pin-label").textContent = label || "Selected location";
+      w.querySelector(".pin-label").textContent = label || i18("Selected location");
       M.pin = new maplibregl.Marker({ element: w, anchor: "center" }).setLngLat(point).addTo(M.map);
       if (ref && ref.km >= 0.5) {
         var rp = [ref.station.lon, ref.station.lat];
@@ -395,7 +404,7 @@
         var k = document.createElement("div");
         k.className = "km-wrap";
         k.innerHTML = '<div class="km"></div>';
-        k.querySelector(".km").textContent = Math.round(ref.km) + " km";
+        k.querySelector(".km").textContent = Math.round(ref.km) + i18(" km");
         M.km = new maplibregl.Marker({ element: k, anchor: "center" })
           .setLngLat([(point[0] + rp[0]) / 2, (point[1] + rp[1]) / 2]).addTo(M.map);
       }
@@ -429,18 +438,18 @@
   }
 
   function renderLegend() {
-    var html = L.CATEGORIES.map(function (c) {
+    var html = L.categories().map(function (c) {
       return '<span><i style="' + swatch(T().cats[c.key]) + '"></i>' + esc(c.label) + "</span>";
     }).join("");
     if (M.sourcesOn) {
-      html += '<span><i style="' + swatch(T().fireCore) + '"></i>Fire hotspot, last 24 h</span>' +
-              (M.traceShown ? '<span><i class="wind-key" style="background:' + T().trace + ';height:3px"></i>Air path to the selected place (model)</span>'
-                            : '<span><i class="wind-key" style="background:' + T().wind + '"></i>Surface wind (model)</span>');
+      html += '<span><i style="' + swatch(T().fireCore) + i18('"></i>Fire hotspot, last 24 h</span>') +
+              (M.traceShown ? '<span><i class="wind-key" style="background:' + T().trace + i18(';height:3px"></i>Air path to the selected place (model)</span>')
+                            : '<span><i class="wind-key" style="background:' + T().wind + i18('"></i>Surface wind (model)</span>'));
     }
-    if (M.sourcesOn && M.smokeShown) html += '<span><i class="wind-key" style="height:0;background:none;border-top:3px dashed ' + T().forecast + '"></i>Smoke paths, next 48 h (forecast estimate)</span>';
-    if (SIM.onMap) html += '<span><i class="sim-key"></i>Meets the simulated rule today</span>';
-    if (M.pair) html += '<span><i class="wind-key" style="background:' + T().closedLine + ';height:3px"></i>' + (M.pairType === "official" ? "Officially closed side" : "Side where the closure level was reached") + '</span>' +
-      '<span><i class="wind-key" style="background:' + T().zoneLine + ';height:3px"></i>Other side</span>';
+    if (M.sourcesOn && M.smokeShown) html += '<span><i class="wind-key" style="height:0;background:none;border-top:3px dashed ' + T().forecast + i18('"></i>Smoke paths, next 48 h (forecast estimate)</span>');
+    if (SIM.onMap) html += i18('<span><i class="sim-key"></i>Meets the simulated rule today</span>');
+    if (M.pair) html += '<span><i class="wind-key" style="background:' + T().closedLine + ';height:3px"></i>' + (M.pairType === "official" ? i18("Officially closed side") : i18("Side where the closure level was reached")) + '</span>' +
+      '<span><i class="wind-key" style="background:' + T().zoneLine + i18(';height:3px"></i>Other side</span>');
     $("map-legend").innerHTML = html;
   }
 
@@ -449,10 +458,10 @@
   function unusualNote(st) {
     var u = st && S.unusual[st.id];
     if (!u) return "";
-    var dir = u.diff < 0 ? "below" : "above";
-    return '<p class="note unusual-note"><b>Unusual reading.</b> ' + esc(st.name) + " reads " + esc(st.api) + ", " + Math.abs(u.diff) + " " + dir +
-      " the middle value (" + u.median + ") of the " + u.count + " other stations within " + u.km + " km. This may be a local effect or a temporary instrument issue. " +
-      "The reading is shown exactly as DOE published it.</p>";
+    var dir = u.diff < 0 ? i18("below") : i18("above");
+    return i18('<p class="note unusual-note"><b>Unusual reading.</b> ') + esc(st.name) + i18(" reads ") + esc(st.api) + ", " + Math.abs(u.diff) + " " + dir +
+      i18(" the middle value (") + u.median + i18(") of the ") + u.count + i18(" other stations within ") + u.km + i18(" km. This may be a local effect or a temporary instrument issue. ") +
+      i18("The reading is shown exactly as DOE published it.</p>");
   }
 
   // ================================================================ air right now (official 1-hour PM2.5)
@@ -462,21 +471,21 @@
     if (!pt || typeof st.pm25_1h !== "number") return "";
     var a = st.pm25_1h, d = st.pm25_24h, ratio = d > 0 ? a / d : 1, word, cls;
     var lag = pm25Lag(st, pt);
-    var rn = lag ? "" : " right now";
-    if (ratio >= 1.25) { word = "worse" + rn + " than the IPU suggests"; cls = "worse"; }
-    else if (ratio <= 0.75) { word = "better" + rn + " than the IPU suggests"; cls = "better"; }
-    else { word = "about the same as the IPU suggests"; cls = "same"; }
+    var rn = lag ? "" : i18(" right now");
+    if (ratio >= 1.25) { word = i18("worse") + rn + i18(" than the IPU suggests"); cls = "worse"; }
+    else if (ratio <= 0.75) { word = i18("better") + rn + i18(" than the IPU suggests"); cls = "better"; }
+    else { word = i18("about the same as the IPU suggests"); cls = "same"; }
     var max = Math.max(a, d, 1);
-    return '<div class="nowair ' + cls + '"><div class="fc-head"><h3>Air right now</h3><span class="fc-tag nowair-tag">Official DOE measurement</span></div>' +
-      '<div class="nowair-grid"><div><span class="na-v">' + Math.round(a) + '</span><span class="na-u">µg/m³</span><span class="na-k">PM2.5 ' + (lag ? "at " + esc(L.fmtTime(pt)) : "this hour") + '</span>' +
+    return '<div class="nowair ' + cls + i18('"><div class="fc-head"><h3>Air right now</h3><span class="fc-tag nowair-tag">Official DOE measurement</span></div>') +
+      '<div class="nowair-grid"><div><span class="na-v">' + Math.round(a) + i18('</span><span class="na-u">µg/m³</span><span class="na-k">PM2.5 ') + (lag ? i18("at ") + esc(L.fmtTime(pt)) : i18("this hour")) + '</span>' +
       '<span class="na-bar"><i style="width:' + (a / max * 100).toFixed(1) + '%"></i></span></div>' +
-      '<div><span class="na-v">' + Math.round(d) + '</span><span class="na-u">µg/m³</span><span class="na-k">PM2.5 24-hour average (what the IPU uses)</span>' +
+      '<div><span class="na-v">' + Math.round(d) + i18('</span><span class="na-u">µg/m³</span><span class="na-k">PM2.5 24-hour average (what the IPU uses)</span>') +
       '<span class="na-bar avg"><i style="width:' + (d / max * 100).toFixed(1) + '%"></i></span></div></div>' +
-      '<p class="nowair-lead">' + (lag ? "At " + esc(L.fmtTime(pt)) + ", the air at " : "The air at ") + esc(st.name) + (lag ? " was <b>" : " is <b>") + word + "</b>. " +
-      (cls === "worse" ? "The IPU is a 24-hour average, so it will usually keep rising for a while if the air stays like this."
-        : cls === "better" ? "The IPU is a 24-hour average, so it will usually fall over the next hours if the air stays like this."
-        : lag ? "The air that hour was close to its 24-hour average." : "The air this hour is close to its 24-hour average.") + "</p>" +
-      (lag ? '<p class="fc-note">DOE has published the IPU for ' + esc(L.fmtTime(L.parseTime(st.observed))) + " but its PM2.5 values only up to " + esc(L.fmtTime(pt)) + ", so these show " + esc(L.fmtTime(pt)) + ".</p>" : "") + "</div>";
+      '<p class="nowair-lead">' + (lag ? i18("At ") + esc(L.fmtTime(pt)) + i18(", the air at ") : i18("The air at ")) + esc(st.name) + (lag ? i18(" was <b>") : i18(" is <b>")) + word + "</b>. " +
+      (cls === "worse" ? i18("The IPU is a 24-hour average, so it will usually keep rising for a while if the air stays like this.")
+        : cls === "better" ? i18("The IPU is a 24-hour average, so it will usually fall over the next hours if the air stays like this.")
+        : lag ? i18("The air that hour was close to its 24-hour average.") : i18("The air this hour is close to its 24-hour average.")) + "</p>" +
+      (lag ? i18('<p class="fc-note">DOE has published the IPU for ') + esc(L.fmtTime(L.parseTime(st.observed))) + i18(" but its PM2.5 values only up to ") + esc(L.fmtTime(pt)) + i18(", so these show ") + esc(L.fmtTime(pt)) + ".</p>" : "") + "</div>";
   }
 
   /* True when the PM2.5 values are from an earlier hour than the IPU shown. */
@@ -493,21 +502,21 @@
     var pt = L.pm25Time(st, now());
     if (!pt) return "";
     var d = L.schoolDayDose(st.pm25_24h), k = cat(st.api), p = d.primary, sc = d.secondary;
-    var times = d.ratio >= 1.15 ? "about <b>" + (d.ratio >= 10 ? Math.round(d.ratio) : Math.round(d.ratio * 10) / 10) + " times</b> as much as on a day at the WHO guideline level"
-              : d.ratio >= 0.85 ? "about the same as on a day at the WHO guideline level" : "less than on a day at the WHO guideline level";
+    var times = d.ratio >= 1.15 ? i18("about <b>") + (d.ratio >= 10 ? Math.round(d.ratio) : Math.round(d.ratio * 10) / 10) + i18(" times</b> as much as on a day at the WHO guideline level")
+              : d.ratio >= 0.85 ? i18("about the same as on a day at the WHO guideline level") : i18("less than on a day at the WHO guideline level");
     var max = Math.max(sc.dose, sc.whoDose);
     var bar = function (label, v, color, cls) {
       return '<div class="dose-row ' + cls + '"><span class="dose-lbl">' + label + '</span><span class="dose-track"><span class="dose-fill" style="width:' +
         Math.max(1.5, v / max * 100).toFixed(1) + "%;background:" + color + ";--c:" + color + '"></span></span><span class="dose-val">' + roundTo(v, 10) + " µg</span></div>";
     };
-    return '<div class="dose"><div class="fc-head"><h3>School-day dose</h3><span class="fc-tag dose-tag">Estimate</span></div>' +
-      '<p class="dose-lead">At ' + esc(st.name) + "'s fine-particle level today (PM2.5 24-hour average <b>" + st.pm25_24h + " µg/m³</b>, official DOE measurement" + (pm25Lag(st, pt) ? " for " + esc(L.fmtTime(pt)) : "") + "), " +
-      "a primary pupil breathes in about <b>" + roundTo(p.dose, 10) + " µg</b> of fine particles in a " + p.hours + "-hour school day, and a secondary student about <b>" +
-      roundTo(sc.dose, 10) + " µg</b> in " + sc.hours + " hours. That is " + times + " (" + d.who + " µg/m³).</p>" +
-      '<div class="dose-bars" role="img" aria-label="Secondary student: ' + roundTo(sc.dose, 10) + ' micrograms today, ' + roundTo(sc.whoDose, 10) + ' at the WHO guideline level">' +
-      bar("Today (secondary)", sc.dose, k.color, "today") + bar("WHO guideline day", sc.whoDose, "var(--muted)", "who") + "</div>" +
-      '<p class="fc-note">Estimate. It assumes classroom air is like the air outside, which is usual with open windows and fans, and typical breathing rates for children sitting and moving lightly ' +
-      '(<a href="https://www.epa.gov/expobox/exposure-factors-handbook-chapter-6" rel="noopener">US EPA Exposure Factors Handbook</a>, chapter 6). Rooms with air filters would be lower. Not medical advice.</p></div>';
+    return i18('<div class="dose"><div class="fc-head"><h3>School-day dose</h3><span class="fc-tag dose-tag">Estimate</span></div>') +
+      i18('<p class="dose-lead">At ') + esc(st.name) + i18("'s fine-particle level today (PM2.5 24-hour average <b>") + st.pm25_24h + i18(" µg/m³</b>, official DOE measurement") + (pm25Lag(st, pt) ? i18(" for ") + esc(L.fmtTime(pt)) : "") + "), " +
+      i18("a primary pupil breathes in about <b>") + roundTo(p.dose, 10) + i18(" µg</b> of fine particles in a ") + p.hours + i18("-hour school day, and a secondary student about <b>") +
+      roundTo(sc.dose, 10) + i18(" µg</b> in ") + sc.hours + i18(" hours. That is ") + times + " (" + d.who + " µg/m³).</p>" +
+      '<div class="dose-bars" role="img" aria-label="Secondary student: ' + roundTo(sc.dose, 10) + i18(' micrograms today, ') + roundTo(sc.whoDose, 10) + ' at the WHO guideline level">' +
+      bar(i18("Today (secondary)"), sc.dose, k.color, "today") + bar(i18("WHO guideline day"), sc.whoDose, "var(--muted)", "who") + "</div>" +
+      i18('<p class="fc-note">Estimate. It assumes classroom air is like the air outside, which is usual with open windows and fans, and typical breathing rates for children sitting and moving lightly ') +
+      i18('(<a href="https://www.epa.gov/expobox/exposure-factors-handbook-chapter-6" rel="noopener">US EPA Exposure Factors Handbook</a>, chapter 6). Rooms with air filters would be lower. Not medical advice.</p></div>');
   }
 
   // ================================================================ rising fastest & unusual list (overview)
@@ -526,32 +535,32 @@
     if (!box) return;
     var list = L.risingFastest(stations(), n, 6), up = list.filter(function (r) { return r.delta >= 5; }).slice(0, 5);
     var down = list.slice().reverse().filter(function (r) { return r.delta <= -5; })[0];
-    var html = '<div class="watch-col"><h3>Rising fastest now</h3>';
-    if (!list.length) html += '<p class="muted">Not enough hourly readings yet.</p>';
-    else if (!up.length) html += '<p class="off-none">No station has risen by 5 or more in the last 6 hours.</p>';
+    var html = i18('<div class="watch-col"><h3>Rising fastest now</h3>');
+    if (!list.length) html += i18('<p class="muted">Not enough hourly readings yet.</p>');
+    else if (!up.length) html += i18('<p class="off-none">No station has risen by 5 or more in the last 6 hours.</p>');
     else {
       html += '<div class="watch-list">' + up.map(function (r) {
         var k = cat(r.to);
         return '<button type="button" class="watch-row" data-station="' + esc(r.station.id) + '"><span class="w-name">' + esc(r.station.name) +
-          '<span class="sub">' + esc(r.station.state) + ", " + r.from + " to " + r.to + "</span></span>" + sparkline(r.series, k.color) +
+          '<span class="sub">' + esc(r.station.state) + ", " + r.from + i18(" to ") + r.to + "</span></span>" + sparkline(r.series, k.color) +
           '<span class="w-delta">+' + r.delta + "</span></button>";
       }).join("") + "</div>";
     }
-    if (down) html += '<p class="small muted">Falling fastest: ' + esc(down.station.name) + ", " + down.from + " to " + down.to + " (" + down.delta + ").</p>";
-    if (list.length) html += '<p class="small muted">Change in the official IPU between ' + esc(L.fmtTime(L.parseTime(list[0].fromKey))) + " and " + esc(L.fmtTime(L.parseTime(list[0].toKey))) +
-      ". The IPU is a 24-hour average, so a steady rise means the air has been getting worse for hours.</p>";
+    if (down) html += i18('<p class="small muted">Falling fastest: ') + esc(down.station.name) + ", " + down.from + i18(" to ") + down.to + " (" + down.delta + ").</p>";
+    if (list.length) html += i18('<p class="small muted">Change in the official IPU between ') + esc(L.fmtTime(L.parseTime(list[0].fromKey))) + i18(" and ") + esc(L.fmtTime(L.parseTime(list[0].toKey))) +
+      i18(". The IPU is a 24-hour average, so a steady rise means the air has been getting worse for hours.</p>");
     html += "</div>";
     var un = Object.keys(S.unusual).map(function (id) { return S.unusual[id]; }).sort(function (a, b) { return Math.abs(b.diff) - Math.abs(a.diff); });
-    html += '<div class="watch-col"><h3>Unusual readings</h3>';
-    if (!un.length) html += '<p class="off-none">No station differs sharply from the stations around it right now.</p>';
+    html += i18('<div class="watch-col"><h3>Unusual readings</h3>');
+    if (!un.length) html += i18('<p class="off-none">No station differs sharply from the stations around it right now.</p>');
     else {
       html += '<div class="watch-list">' + un.map(function (u) {
         return '<button type="button" class="watch-row" data-station="' + esc(u.station.id) + '"><span class="w-name">' + esc(u.station.name) +
-          '<span class="sub">' + esc(u.station.state) + ", nearby stations around " + u.median + "</span></span>" +
+          '<span class="sub">' + esc(u.station.state) + i18(", nearby stations around ") + u.median + "</span></span>" +
           '<span class="w-delta unusual-delta">' + u.station.api + "</span></button>";
       }).join("") + "</div>";
     }
-    html += '<p class="small muted">Flagged when a reading differs by 40 or more (and by at least a third) from the middle value of the other stations within 60 km. Readings are never changed.</p></div>';
+    html += i18('<p class="small muted">Flagged when a reading differs by 40 or more (and by at least a third) from the middle value of the other stations within 60 km. Readings are never changed.</p></div>');
     box.innerHTML = html;
   }
 
@@ -585,7 +594,7 @@
   /* Play values as tones: one per hour, 0.22 s apart. */
   function playTones(values, opts) {
     var ac = audioCtx();
-    if (!ac) { announce("This browser cannot play sound."); return false; }
+    if (!ac) { announce(i18("This browser cannot play sound.")); return false; }
     stopSound();
     var step = 0.22, dur = 0.18, t0 = ac.currentTime + 0.12, lead = (t0 - ac.currentTime) * 1000;
     values.forEach(function (v, i) {
@@ -603,7 +612,7 @@
     return true;
   }
 
-  function whenShort(t) { return L.fmtTime(t) + " " + L.weekdayOfKey(L.mytDateKey(t)); }
+  function whenShort(t) { return L.fmtTime(t) + " " + L.dayName(L.mytDateKey(t)); }
 
   function listenControls(allPts, st, markAll) {
     var pts = allPts.slice(-24), offset = allPts.length - pts.length;
@@ -612,20 +621,20 @@
     wrap.className = "listen";
     var first = pts[0], last = pts[pts.length - 1], hi = pts[0], lo = pts[0];
     pts.forEach(function (p) { if (p.y > hi.y) hi = p; if (p.y < lo.y) lo = p; });
-    var summary = "Highest " + hi.y + " at " + whenShort(hi.t) + ". Lowest " + lo.y + " at " + whenShort(lo.t) + ". Latest " + last.y + ", " + cat(last.y).label + ".";
-    var label = "Listen to the last " + pts.length + " hours";
+    var summary = i18("Highest ") + hi.y + i18(" at ") + whenShort(hi.t) + i18(". Lowest ") + lo.y + i18(" at ") + whenShort(lo.t) + i18(". Latest ") + last.y + ", " + cat(last.y).label + ".";
+    var label = i18("Listen to the last ") + pts.length + i18(" hours");
     wrap.innerHTML = '<button type="button" class="listen-btn" aria-pressed="false" data-label="' + esc(label) + '">' + esc(label) + "</button>" +
-      '<p class="listen-desc">' + esc(pts.length + " tones, one per hour, from " + whenShort(first.t) + " to " + whenShort(last.t) + ". Higher pitch means worse air. " +
-      "A soft buzz means Unhealthy (above 100); a harsh buzz means 200 or above. " + summary) + "</p>";
+      '<p class="listen-desc">' + esc(pts.length + i18(" tones, one per hour, from ") + whenShort(first.t) + i18(" to ") + whenShort(last.t) + i18(". Higher pitch means worse air. ") +
+      i18("A soft buzz means Unhealthy (above 100); a harsh buzz means 200 or above. ") + summary) + "</p>";
     var btn = wrap.querySelector("button");
     btn.addEventListener("click", function () {
-      if (btn.getAttribute("aria-pressed") === "true") { stopSound(); mark(-1); announce("Stopped."); return; }
-      announce("Playing " + pts.length + " hours at " + st.name + ", from " + whenShort(first.t) + " to " + whenShort(last.t) + ". Higher pitch means worse air.");
+      if (btn.getAttribute("aria-pressed") === "true") { stopSound(); mark(-1); announce(i18("Stopped.")); return; }
+      announce(i18("Playing ") + pts.length + i18(" hours at ") + st.name + i18(", from ") + whenShort(first.t) + i18(" to ") + whenShort(last.t) + i18(". Higher pitch means worse air."));
       var ok = playTones(pts.map(function (p) { return p.y; }), {
         onStep: function (i) { mark(i); },
-        onEnd: function () { mark(-1); btn.setAttribute("aria-pressed", "false"); btn.textContent = label; announce("Finished. " + summary); }
+        onEnd: function () { mark(-1); btn.setAttribute("aria-pressed", "false"); btn.textContent = label; announce(i18("Finished. ") + summary); }
       });
-      if (ok) { btn.setAttribute("aria-pressed", "true"); btn.textContent = "Stop"; }
+      if (ok) { btn.setAttribute("aria-pressed", "true"); btn.textContent = i18("Stop"); }
     });
     return wrap;
   }
@@ -637,7 +646,7 @@
     $("a11y-sound").checked = on;
     $("a11y-btn").classList.toggle("is-on", on);
     renderSelection(false);
-    announce(on ? "Hear the haze is on. Each 24-hour chart now has a Listen button." : "Hear the haze is off.");
+    announce(on ? i18("Hear the haze is on. Each 24-hour chart now has a Listen button.") : i18("Hear the haze is off."));
   }
 
   // ================================================================ rule vs reality
@@ -651,19 +660,19 @@
     var r = rrFor(c);
     if (!r || !r.verdict) return "";
     var v = r.verdict, part = r.before24 && !r.before24.complete && r.before24.max;
-    return '<p class="rr-line"><span class="rr-chip ' + esc(v.kind) + '">' + esc(RR_LABEL[v.kind] || "Rule vs reality") + "</span>" + esc(v.text) +
-      (part ? " Based on " + r.before24.hours + " of 24 hours of readings." : "") +
-      (withLink ? ' <a href="#closures" class="rr-link">See the day-by-day chart</a>' : "") + "</p>";
+    return '<p class="rr-line"><span class="rr-chip ' + esc(v.kind) + '">' + esc(i18(RR_LABEL[v.kind] || "Rule vs reality")) + "</span>" + esc(loc(v, "text")) +
+      (part ? i18(" Based on ") + r.before24.hours + i18(" of 24 hours of readings.") : "") +
+      (withLink ? i18(' <a href="#closures" class="rr-link">See the day-by-day chart</a>') : "") + "</p>";
   }
 
   function rrBlock(c) {
     var r = rrFor(c);
-    if (!r) return '<p class="off-none">Rule vs reality: the comparison with official readings is added by the next hourly update.</p>';
-    return '<div class="rr"><h4>Rule vs reality</h4>' + rrLine(c, false) +
+    if (!r) return i18('<p class="off-none">Rule vs reality: the comparison with official readings is added by the next hourly update.</p>');
+    return i18('<div class="rr"><h4>Rule vs reality</h4>') + rrLine(c, false) +
       (r.days && r.days.length ? '<div class="chart rr-chart" data-rr="' + esc(c.id) + '"></div>' : "") +
-      '<p class="small muted">Compared with official DOE readings at ' + esc(r.basis) + " (" + (r.stations ? r.stations.length : 0) + " station" + (r.stations && r.stations.length === 1 ? "" : "s") +
-      "). The national rule closes schools in the affected area once the IPU reaches " + ((S.rr.rule && S.rr.rule.threshold) || 200) +
-      ". States can also decide on other grounds, such as health data or the weather outlook.</p></div>";
+      i18('<p class="small muted">Compared with official DOE readings at ') + esc(loc(r, "basis")) + " (" + (r.stations ? r.stations.length : 0) + i18(" station") + (r.stations && r.stations.length === 1 ? "" : i18("s")) +
+      i18("). The national rule closes schools in the affected area once the IPU reaches ") + ((S.rr.rule && S.rr.rule.threshold) || 200) +
+      i18(". States can also decide on other grounds, such as health data or the weather outlook.</p></div>");
   }
 
   function drawRR(el) {
@@ -677,7 +686,7 @@
     var sy = function (v) { return H - padB - (v / ymax) * (H - padT - padB); };
     var cx = function (i) { return padL + step * i + step / 2; };
     var svg = svgEl("svg", { viewBox: "0 0 " + W2 + " " + H, width: W2, height: H, role: "img",
-      "aria-label": "Highest official IPU each day in the closed area, with the closure days marked" });
+      "aria-label": i18("Highest official IPU each day in the closed area, with the closure days marked") });
     var defs = svgEl("defs", {}), pat = svgEl("pattern", { id: "rrhatch-" + id, width: 8, height: 8, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
     pat.appendChild(svgEl("rect", { width: 8, height: 8, fill: T().closedLine, opacity: 0.06 }));
     pat.appendChild(svgEl("line", { x1: 0, y1: 0, x2: 0, y2: 8, stroke: T().closedLine, "stroke-width": 2, opacity: 0.28 }));
@@ -687,7 +696,7 @@
       if (d.closed) svg.appendChild(svgEl("rect", { x: padL + step * i, y: padT - 14, width: step, height: H - padB - padT + 14, fill: "url(#rrhatch-" + id + ")" }));
     });
     var firstClosed = days.map(function (d) { return d.closed; }).indexOf(true);
-    if (firstClosed >= 0) svg.appendChild(svgEl("text", { x: padL + step * firstClosed + 4, y: padT - 4, "font-size": 10.5, fill: T().closedLine, "font-weight": 700 }, "Schools closed"));
+    if (firstClosed >= 0) svg.appendChild(svgEl("text", { x: padL + step * firstClosed + 4, y: padT - 4, "font-size": 10.5, fill: T().closedLine, "font-weight": 700 }, i18("Schools closed")));
     for (var g = 0; g <= ymax; g += 50) {
       svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
       svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
@@ -701,14 +710,14 @@
       svg.appendChild(bar);
       svg.appendChild(svgEl("text", { x: cx(i), y: sy(d.max.api) - 5, "font-size": 11, fill: T().ink, "text-anchor": "middle", "font-weight": 700,
         stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, String(d.max.api)));
-      var dk = d.date, wd = L.weekdayOfKey(dk), dn = String(Number(dk.slice(8, 10)));
+      var dk = d.date, wd = L.dayName(dk), dn = String(Number(dk.slice(8, 10)));
       svg.appendChild(svgEl("text", { x: cx(i), y: H - padB + 14, "font-size": 10.5, fill: T().axis, "text-anchor": "middle" }, wd));
       svg.appendChild(svgEl("text", { x: cx(i), y: H - padB + 27, "font-size": 10.5, fill: T().axis, "text-anchor": "middle" }, dn));
       var hit = svgEl("rect", { x: padL + step * i, y: padT, width: step, height: H - padT - padB, fill: "transparent" });
       hit.addEventListener("mousemove", function (ev) {
-        showTip("<b>" + esc(L.fmtDayKey(dk)) + "</b><br>Highest " + d.max.api + " (" + esc(k.label) + ") at " + esc(d.max.name) + ", " + esc(d.max.time.slice(11)) +
-          "<br>" + d.reached200 + " station" + (d.reached200 === 1 ? "" : "s") + " at " + thr + " or more" + (d.closed ? "<br>Schools officially closed" : "") +
-          (d.partial_day ? "<br>Day not complete (" + d.hours + " hours)" : ""), ev.clientX, ev.clientY);
+        showTip("<b>" + esc(L.fmtDayKey(dk)) + i18("</b><br>Highest ") + d.max.api + " (" + esc(k.label) + i18(") at ") + esc(d.max.name) + ", " + esc(d.max.time.slice(11)) +
+          "<br>" + d.reached200 + i18(" station") + (d.reached200 === 1 ? "" : i18("s")) + i18(" at ") + thr + i18(" or more") + (d.closed ? i18("<br>Schools officially closed") : "") +
+          (d.partial_day ? i18("<br>Day not complete (") + d.hours + i18(" hours)") : ""), ev.clientX, ev.clientY);
       });
       hit.addEventListener("mouseleave", hideTip);
       svg.appendChild(hit);
@@ -721,22 +730,22 @@
         var hr = Number(L.fmtTime(at).slice(0, 2)) + Number(L.fmtTime(at).slice(3)) / 60;
         var ax = padL + step * ai + step * (hr / 24);
         svg.appendChild(svgEl("line", { x1: ax, x2: ax, y1: padT - 14, y2: H - padB, stroke: T().ink, "stroke-width": 1.2, "stroke-dasharray": "2 3" }));
-        svg.appendChild(svgEl("text", { x: ax - 4, y: padT - 4, "font-size": 10.5, fill: T().ink, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "Announced"));
+        svg.appendChild(svgEl("text", { x: ax - 4, y: padT - 4, "font-size": 10.5, fill: T().ink, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, i18("Announced")));
       }
     }
     el.innerHTML = "";
     el.appendChild(svg);
     var leg = document.createElement("div");
     leg.className = "legend-row";
-    leg.innerHTML = '<span><i class="rr-key-closed"></i>Schools officially closed</span><span><i class="rr-key-line"></i>National closure level (' + thr + ')</span>' +
-      (days.some(function (d) { return d.partial_day; }) ? '<span><i class="rr-key-faded"></i>Day not complete</span>' : "");
+    leg.innerHTML = i18('<span><i class="rr-key-closed"></i>Schools officially closed</span><span><i class="rr-key-line"></i>National closure level (') + thr + ')</span>' +
+      (days.some(function (d) { return d.partial_day; }) ? i18('<span><i class="rr-key-faded"></i>Day not complete</span>') : "");
     el.appendChild(leg);
     var det = document.createElement("details");
     det.className = "inline-details";
-    det.innerHTML = "<summary>Show as a table</summary><div class='table-wrap'><table class='mini'><thead><tr><th>Day</th><th class='num'>Highest</th><th>Station</th><th class='num'>At 200+</th><th>Schools</th></tr></thead><tbody>" +
+    det.innerHTML = i18("<summary>Show as a table</summary><div class='table-wrap'><table class='mini'><thead><tr><th>Day</th><th class='num'>Highest</th><th>Station</th><th class='num'>At 200+</th><th>Schools</th></tr></thead><tbody>") +
       days.map(function (d) {
-        return "<tr><td>" + esc(dayShort(d.date)) + (d.partial_day ? " (so far)" : "") + "</td><td class='num'>" + d.max.api + "</td><td>" + esc(d.max.name) + "</td><td class='num'>" + d.reached200 +
-          "</td><td>" + (d.closed ? "Officially closed" : "Open or weekend") + "</td></tr>";
+        return "<tr><td>" + esc(dayShort(d.date)) + (d.partial_day ? i18(" (so far)") : "") + "</td><td class='num'>" + d.max.api + "</td><td>" + esc(d.max.name) + "</td><td class='num'>" + d.reached200 +
+          "</td><td>" + (d.closed ? i18("Officially closed") : i18("Open or weekend")) + "</td></tr>";
       }).join("") + "</tbody></table></div>";
     el.appendChild(det);
   }
@@ -749,27 +758,27 @@
     var box = $("closures"), n = now();
     if (!S.ann) { box.innerHTML = ""; return; }
     var list = L.activeClosures(S.ann, n);
-    var html = '<h3>Official school closures</h3>';
+    var html = i18('<h3>Official school closures</h3>');
     if (!list.length) {
-      html += '<p class="off-none">No current or upcoming haze closures have been reported by Bernama (last checked ' + esc(checkedText()) + ").</p>";
+      html += i18('<p class="off-none">No current or upcoming haze closures have been reported by Bernama (last checked ') + esc(checkedText()) + ").</p>";
     } else {
       list.forEach(function (c) {
         var started = c.from <= L.mytDateKey(n);
-        html += '<div class="closure-item"><p class="ci-head"><span class="off-chip">Official</span><b>' + esc(L.areaLabel(c)) + "</b>: schools " +
-          (started ? "closed " + esc(untilText(c)) : "close " + (c.until_further_notice ? "from " + esc(dayShort(c.from)) + " until further notice" : esc(rangeText(c.from, c.to)))) + "</p>" +
-          '<p class="pred-detail">' + esc(c.covers) + (c.learning ? " " + esc(c.learning) : "") + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
+        html += i18('<div class="closure-item"><p class="ci-head"><span class="off-chip">Official</span><b>') + esc(L.areaLabel(c)) + i18("</b>: schools ") +
+          (started ? i18("closed ") + esc(untilText(c)) : i18("close ") + (c.until_further_notice ? i18("from ") + esc(dayShort(c.from)) + i18(" until further notice") : esc(rangeText(c.from, c.to)))) + "</p>" +
+          '<p class="pred-detail">' + esc(loc(c, "covers")) + (c.learning ? " " + esc(loc(c, "learning")) : "") + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
       });
-      html += '<p class="small muted">From Bernama reports only, checked every hour from 6 am to 7 pm (last checked ' + esc(checkedText()) + "). Confirm with your school or JPN.</p>";
+      html += i18('<p class="small muted">From Bernama reports only, checked every hour from 6 am to 7 pm (last checked ') + esc(checkedText()) + i18("). Confirm with your school or JPN.</p>");
     }
     var tk = L.mytDateKey(n), recent = ((S.ann && S.ann.closures) || []).filter(function (c) {
       return L.validClosure(c, S.ann.source_policy) && c.to < tk && c.to >= L.addDaysKey(tk, -14);
     });
     if (recent.length) {
-      html += '<h3 class="rr-past-h">Recently ended</h3>' + recent.map(function (c) {
-        return '<div class="closure-item ended"><p class="ci-head"><b>' + esc(L.areaLabel(c)) + "</b>: schools were closed " + esc(rangeText(c.from, c.to)) + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
+      html += i18('<h3 class="rr-past-h">Recently ended</h3>') + recent.map(function (c) {
+        return '<div class="closure-item ended"><p class="ci-head"><b>' + esc(L.areaLabel(c)) + i18("</b>: schools were closed ") + esc(rangeText(c.from, c.to)) + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
       }).join("");
     }
-    if (annStale()) html += '<p class="note">Announcements have not been checked as often as planned (last check ' + esc(checkedText()) + '), so a newer announcement may be missing.</p>';
+    if (annStale()) html += i18('<p class="note">Announcements have not been checked as often as planned (last check ') + esc(checkedText()) + i18('), so a newer announcement may be missing.</p>');
     html += calendarHTML();
     box.innerHTML = html;
     drawAllRR();
@@ -794,22 +803,22 @@
     var feeds = calFeeds();
     if (!feeds.length) return "";
     var d = calDefault();
-    return '<div class="cal" id="cal"><h3>Get official closures in your calendar</h3>' +
-      '<p class="small muted">A calendar you subscribe to: new closures, extensions and early reopenings reported by Bernama appear by themselves.</p>' +
+    return i18('<div class="cal" id="cal"><h3>Get official closures in your calendar</h3>') +
+      i18('<p class="small muted">A calendar you subscribe to: new closures, extensions and early reopenings reported by Bernama appear by themselves.</p>') +
       '<div class="cal-row"><select id="cal-state" aria-label="State for the calendar">' + feeds.map(function (f) {
         return '<option value="' + esc(f.file) + '"' + (d && f.file === d.file ? " selected" : "") + ">" + esc(f.name) + "</option>";
       }).join("") + '</select><div class="cal-btns" id="cal-btns"></div></div>' +
-      '<p class="small muted">Calendar apps check subscribed calendars on their own schedule, from every few minutes to about once a day (Google). Confirm with your school or JPN.</p></div>';
+      i18('<p class="small muted">Calendar apps check subscribed calendars on their own schedule, from every few minutes to about once a day (Google). Confirm with your school or JPN.</p></div>');
   }
 
   function calLinks(file) {
     var base = location.origin + location.pathname.replace(/[^/]*$/, ""), https = base + "data/cal/" + file;
     var webcal = https.replace(/^https?:/, "webcal:"), feed = calFeeds().filter(function (f) { return f.file === file; })[0];
-    var name = "Haze school closures: " + (feed ? feed.name : "Malaysia");
-    return '<a class="cal-btn" href="' + esc(webcal) + '">Subscribe (iPhone, Mac, Android apps)</a>' +
-      '<a class="cal-btn" target="_blank" rel="noopener" href="https://calendar.google.com/calendar/render?cid=' + encodeURIComponent(webcal) + '">Google Calendar</a>' +
-      '<a class="cal-btn" target="_blank" rel="noopener" href="https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(https) + "&name=" + encodeURIComponent(name) + '">Outlook</a>' +
-      '<a class="cal-btn" href="' + esc(https) + '" download>Download .ics</a>';
+    var name = i18("Haze school closures: ") + (feed ? feed.name : "Malaysia");
+    return '<a class="cal-btn" href="' + esc(webcal) + i18('">Subscribe (iPhone, Mac, Android apps)</a>') +
+      '<a class="cal-btn" target="_blank" rel="noopener" href="https://calendar.google.com/calendar/render?cid=' + encodeURIComponent(webcal) + i18('">Google Calendar</a>') +
+      '<a class="cal-btn" target="_blank" rel="noopener" href="https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(https) + "&name=" + encodeURIComponent(name) + i18('">Outlook</a>') +
+      '<a class="cal-btn" href="' + esc(https) + i18('" download>Download .ics</a>');
   }
 
   function bindCalendar() {
@@ -845,7 +854,7 @@
           geometry: { type: "MultiPolygon", coordinates: d.polygons } });
         w = Math.min(w, d.bbox[0]); so = Math.min(so, d.bbox[1]); e = Math.max(e, d.bbox[2]); no = Math.max(no, d.bbox[3]);
       });
-      if (hit) labels.push({ lon: e + 0.12, lat: (so + no) / 2, text: "Schools closed " + untilText(c) });
+      if (hit) labels.push({ lon: e + 0.12, lat: (so + no) / 2, text: i18("Schools closed ") + untilText(c) });
     });
     return { geo: out, labels: labels };
   }
@@ -995,7 +1004,7 @@
     M.sourcesOn = on;
     var b = $("src-btn");
     b.setAttribute("aria-pressed", on ? "true" : "false");
-    b.textContent = on ? "Hide haze sources" : "Where the haze comes from";
+    b.textContent = on ? i18("Hide haze sources") : i18("Where the haze comes from");
     if (M.map && M.styleReady) {
       ["fires-glow", "fires"].forEach(function (id) { if (M.map.getLayer(id)) M.map.setLayoutProperty(id, "visibility", on ? "visible" : "none"); });
     }
@@ -1084,7 +1093,7 @@
         var el = document.createElement("div");
         el.className = "day-wrap";
         el.innerHTML = '<div class="day"></div>';
-        el.querySelector(".day").textContent = h / 24 + (h === 24 ? " day ago" : " days ago");
+        el.querySelector(".day").textContent = h / 24 + (h === 24 ? i18(" day ago") : i18(" days ago"));
         M.dayMarkers.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([p[0], p[1]]).addTo(M.map));
       });
     } else if (M.sourcesOn) {
@@ -1105,38 +1114,38 @@
 
   function listNames(arr) {
     if (arr.length <= 1) return arr.join("");
-    return arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1];
+    return arr.slice(0, -1).join(", ") + i18(" and ") + arr[arr.length - 1];
   }
 
   function renderAirPath() {
     var box = $("airpath"), pt = selPoint(S.sel);
     if (!pt) { box.innerHTML = ""; box.className = ""; return; }
     box.className = "airpath";
-    var head = '<div class="fc-head"><h3>Where this air came from</h3><span class="fc-tag">Model estimate</span></div>';
+    var head = i18('<div class="fc-head"><h3>Where this air came from</h3><span class="fc-tag">Model estimate</span></div>');
     if (S.windHist === null) {
-      box.innerHTML = head + '<p class="muted">Loading wind history…</p>';
+      box.innerHTML = head + i18('<p class="muted">Loading wind history…</p>');
       loadWindHist().then(function () { renderAirPath(); updateTraceDisplay(); });
       return;
     }
-    if (!S.windHist) { box.innerHTML = head + '<p class="muted">The wind history needed to trace the air is not available right now. It is refreshed with the hourly update.</p>'; return; }
+    if (!S.windHist) { box.innerHTML = head + i18('<p class="muted">The wind history needed to trace the air is not available right now. It is refreshed with the hourly update.</p>'); return; }
     var t = currentTrace();
-    if (!t || !t.tr) { box.innerHTML = head + '<p class="muted">The air path could not be traced here: this place is at the edge of the wind data.</p>'; return; }
+    if (!t || !t.tr) { box.innerHTML = head + i18('<p class="muted">The air path could not be traced here: this place is at the edge of the wind data.</p>'); return; }
     var days = Math.round(t.tr.hoursCovered / 24 * 10) / 10;
     var over = t.regions.filter(function (r) { return r.hours >= 6; }).slice(0, 3).map(function (r) { return r.name; });
     var start = t.tr.hourly[t.tr.hourly.length - 1], startRegion = L.regionOf(start[0], start[1]);
-    var html = head + '<p class="lead">Over the last ' + (days >= 2.9 ? "3 days" : days + " days") + ", the air now arriving here travelled about <b>" +
-      Math.round(t.tr.km / 10) * 10 + " km</b>" + (over.length ? ", mostly over " + esc(listNames(over)) : "") + ". " +
-      (days >= 2.9 ? "Three days ago it was over " : "At the start of the trace it was over ") + esc(startRegion) + ".</p>";
+    var html = head + i18('<p class="lead">Over the last ') + (days >= 2.9 ? i18("3 days") : days + i18(" days")) + i18(", the air now arriving here travelled about <b>") +
+      Math.round(t.tr.km / 10) * 10 + i18(" km</b>") + (over.length ? i18(", mostly over ") + esc(listNames(over)) : "") + ". " +
+      (days >= 2.9 ? i18("Three days ago it was over ") : i18("At the start of the trace it was over ")) + esc(startRegion) + ".</p>";
     if (t.near.count) {
-      html += '<p class="lead">Along the way it passed within 25 km of <b>' + t.near.count.toLocaleString("en-MY") + " fire hotspot" + (t.near.count > 1 ? "s" : "") +
-        "</b> detected by satellites in the last 24 hours" + (t.near.byRegion.length ? ", mostly in " + esc(t.near.byRegion[0].name) : "") + ".</p>";
+      html += i18('<p class="lead">Along the way it passed within 25 km of <b>') + t.near.count.toLocaleString("en-MY") + i18(" fire hotspot") + (t.near.count > 1 ? i18("s") : "") +
+        i18("</b> detected by satellites in the last 24 hours") + (t.near.byRegion.length ? i18(", mostly in ") + esc(t.near.byRegion[0].name) : "") + ".</p>";
     } else if (t.fires.length) {
-      html += '<p class="lead">It did not pass near any of the fire hotspots detected by satellites in the last 24 hours.</p>';
+      html += i18('<p class="lead">It did not pass near any of the fire hotspots detected by satellites in the last 24 hours.</p>');
     } else {
-      html += '<p class="lead">No recent satellite fire detections are available to compare with the path.</p>';
+      html += i18('<p class="lead">No recent satellite fire detections are available to compare with the path.</p>');
     }
-    html += '<button type="button" class="trace-btn" id="trace-show">' + (M.sourcesOn ? "Show the path on the map" : "Show the path and fires on the map") + "</button>" +
-      '<p class="fc-note">Traced backwards through modelled winds about 800 m up, where smoke travels (Open-Meteo). The fire detections are from the last 24 hours while the air passed those areas up to 3 days ago, so this shows fires along the route, not proof that a particular fire caused today\'s haze. Not official data.</p>';
+    html += '<button type="button" class="trace-btn" id="trace-show">' + (M.sourcesOn ? i18("Show the path on the map") : i18("Show the path and fires on the map")) + "</button>" +
+      i18('<p class="fc-note">Traced backwards through modelled winds about 800 m up, where smoke travels (Open-Meteo). The fire detections are from the last 24 hours while the air passed those areas up to 3 days ago, so this shows fires along the route, not proof that a particular fire caused today\'s haze. Not official data.</p>');
     box.innerHTML = html;
   }
 
@@ -1189,13 +1198,13 @@
   /* "around Mon 03:00 (in about 15 hours)", rounded to the hour: these are rough estimates. */
   function arriveText(tMin, t0) {
     var d = new Date(Math.round(tMin / 60) * 3600000), h = Math.max(1, Math.round((tMin - t0) / 60));
-    return "around " + L.weekdayOfKey(L.mytDateKey(d)) + " " + L.fmtTime(d) + " (in about " + h + " hour" + (h === 1 ? "" : "s") + ")";
+    return i18("around ") + L.dayName(L.mytDateKey(d)) + " " + L.fmtTime(d) + i18(" (in about ") + h + i18(" hour") + (h === 1 ? "" : i18("s")) + ")";
   }
 
-  function smokeTag() { return '<span class="fc-tag">Forecast estimate</span>'; }
+  function smokeTag() { return i18('<span class="fc-tag">Forecast estimate</span>'); }
   function smokeNote() {
-    return '<p class="fc-note">Estimate from forecast winds about 800 m up (Open-Meteo), starting from fire areas NASA satellites detected in the last 24 hours. ' +
-      "It follows where the air now over those fires is heading; it does not say how much smoke it carries or what the IPU will be, and paths are less certain further ahead. Not official.</p>";
+    return i18('<p class="fc-note">Estimate from forecast winds about 800 m up (Open-Meteo), starting from fire areas NASA satellites detected in the last 24 hours. ') +
+      i18("It follows where the air now over those fires is heading; it does not say how much smoke it carries or what the IPU will be, and paths are less certain further ahead. Not official.</p>");
   }
 
   function renderSmoke() {
@@ -1204,32 +1213,32 @@
     var sel = S.sel, pt = selPoint(sel), isState = sel && sel.type === "state";
     if (!sel || (!pt && !isState)) { box.innerHTML = ""; box.className = ""; return; }
     box.className = "smoke";
-    var head = '<div class="fc-head"><h3>Smoke on the way</h3>' + smokeTag() + "</div>";
-    if (S.windFc === null) { box.innerHTML = head + '<p class="muted">Loading the wind forecast…</p>'; loadWindFc().then(function () { renderSmoke(); updateSmokeOnMap(); }); return; }
-    if (!S.windFc) { box.innerHTML = head + '<p class="muted">The wind forecast is not available right now. It is refreshed with the hourly update.</p>'; return; }
+    var head = i18('<div class="fc-head"><h3>Smoke on the way</h3>') + smokeTag() + "</div>";
+    if (S.windFc === null) { box.innerHTML = head + i18('<p class="muted">Loading the wind forecast…</p>'); loadWindFc().then(function () { renderSmoke(); updateSmokeOnMap(); }); return; }
+    if (!S.windFc) { box.innerHTML = head + i18('<p class="muted">The wind forecast is not available right now. It is refreshed with the hourly update.</p>'); return; }
     var sm = smokeAll();
-    if (!sm || !sm.fires) { box.innerHTML = head + '<p class="muted">No recent satellite fire detections are available to follow.</p>'; return; }
-    if (!sm.res) { box.innerHTML = head + '<p class="muted">No fire areas with 3 or more hotspots were detected in the last 24 hours.</p>' + smokeNote(); return; }
+    if (!sm || !sm.fires) { box.innerHTML = head + i18('<p class="muted">No recent satellite fire detections are available to follow.</p>'); return; }
+    if (!sm.res) { box.innerHTML = head + i18('<p class="muted">No fire areas with 3 or more hotspots were detected in the last 24 hours.</p>') + smokeNote(); return; }
     var html = head, t0 = sm.res.t0;
     if (isState) {
       var st = smokeByState(sm).filter(function (b) { return L.sameState(b.state, sel.state); })[0];
-      html += st ? '<p class="lead">Air now over fire areas in <b>' + esc(listNames(st.regionList.slice(0, 3))) + "</b> is forecast to pass within " + SMOKE_KM + " km of " +
-          st.stations + " of the " + st.total + " monitoring stations in " + esc(sel.state) + ", first " + esc(arriveText(st.earliest, t0)) + ".</p>"
-        : '<p class="lead">In the forecast winds for the next 48 hours, air now over today\'s fire areas does not pass within ' + SMOKE_KM + " km of any monitoring station in " + esc(sel.state) + ".</p>";
+      html += st ? i18('<p class="lead">Air now over fire areas in <b>') + esc(listNames(st.regionList.slice(0, 3))) + i18("</b> is forecast to pass within ") + SMOKE_KM + i18(" km of ") +
+          st.stations + i18(" of the ") + st.total + i18(" monitoring stations in ") + esc(sel.state) + i18(", first ") + esc(arriveText(st.earliest, t0)) + ".</p>"
+        : i18('<p class="lead">In the forecast winds for the next 48 hours, air now over today\'s fire areas does not pass within ') + SMOKE_KM + i18(" km of any monitoring station in ") + esc(sel.state) + ".</p>";
     } else {
       var r = L.smokeHitsFor(sm.res.paths, { lon: pt.lon, lat: pt.lat }, SMOKE_KM);
       S.smokeHere = r;
       if (r.earliest !== null) {
-        html += '<p class="lead">Air now over fire areas in <b>' + esc(r.regions[0].name) + "</b> (" + r.regions[0].count.toLocaleString("en-MY") + " hotspots) is forecast to pass within " +
-          SMOKE_KM + " km of here " + esc(arriveText(r.regions[0].first, t0)) + ".</p>";
+        html += i18('<p class="lead">Air now over fire areas in <b>') + esc(r.regions[0].name) + "</b> (" + r.regions[0].count.toLocaleString("en-MY") + i18(" hotspots) is forecast to pass within ") +
+          SMOKE_KM + i18(" km of here ") + esc(arriveText(r.regions[0].first, t0)) + ".</p>";
         if (r.regions.length > 1) {
-          html += '<p class="lead">Also from ' + r.regions.slice(1, 3).map(function (g) { return "<b>" + esc(g.name) + "</b> (" + g.count.toLocaleString("en-MY") + " hotspots, " + esc(arriveText(g.first, t0).replace(/ \(.*\)$/, "")) + ")"; }).join(" and ") + ".</p>";
+          html += i18('<p class="lead">Also from ') + r.regions.slice(1, 3).map(function (g) { return "<b>" + esc(g.name) + "</b> (" + g.count.toLocaleString("en-MY") + i18(" hotspots, ") + esc(arriveText(g.first, t0).replace(/ \(.*\)$/, "")) + ")"; }).join(i18(" and ")) + ".</p>";
         }
       } else {
-        html += '<p class="lead">In the forecast winds for the next 48 hours, air now over today\'s ' + sm.clusters.length + " fire areas does not pass within " + SMOKE_KM + " km of here.</p>";
+        html += i18('<p class="lead">In the forecast winds for the next 48 hours, air now over today\'s ') + sm.clusters.length + i18(" fire areas does not pass within ") + SMOKE_KM + i18(" km of here.</p>");
       }
     }
-    html += '<button type="button" class="trace-btn" id="smoke-show">Show smoke paths on the map</button>' + smokeNote();
+    html += i18('<button type="button" class="trace-btn" id="smoke-show">Show smoke paths on the map</button>') + smokeNote();
     box.innerHTML = html;
     if (M.sourcesOn) updateSmokeOnMap();
   }
@@ -1237,19 +1246,19 @@
   function renderSmokeOverview() {
     var box = $("smoke-ov");
     if (!box) return;
-    var head = '<div class="fc-head"><h3>Smoke on the way, next 48 hours</h3>' + smokeTag() + "</div>";
-    if (S.windFc === null) { box.innerHTML = head + '<p class="muted">Loading the wind forecast…</p>'; loadWindFc().then(function () { renderSmokeOverview(); updateSmokeOnMap(); }); return; }
-    if (!S.windFc) { box.innerHTML = head + '<p class="muted">The wind forecast is not available right now.</p>'; return; }
+    var head = i18('<div class="fc-head"><h3>Smoke on the way, next 48 hours</h3>') + smokeTag() + "</div>";
+    if (S.windFc === null) { box.innerHTML = head + i18('<p class="muted">Loading the wind forecast…</p>'); loadWindFc().then(function () { renderSmokeOverview(); updateSmokeOnMap(); }); return; }
+    if (!S.windFc) { box.innerHTML = head + i18('<p class="muted">The wind forecast is not available right now.</p>'); return; }
     var sm = smokeAll();
-    if (!sm || !sm.res) { box.innerHTML = head + '<p class="muted">No fire areas to follow right now.</p>'; return; }
+    if (!sm || !sm.res) { box.innerHTML = head + i18('<p class="muted">No fire areas to follow right now.</p>'); return; }
     var list = smokeByState(sm), t0 = sm.res.t0;
     var html = head;
     if (!list.length) {
-      html += '<p class="lead">In the forecast winds, air now over today\'s ' + sm.clusters.length + " fire areas does not reach any Malaysian monitoring station in the next 48 hours.</p>";
+      html += i18('<p class="lead">In the forecast winds, air now over today\'s ') + sm.clusters.length + i18(" fire areas does not reach any Malaysian monitoring station in the next 48 hours.</p>");
     } else {
       html += '<div class="smoke-list">' + list.map(function (b) {
-        return '<div class="smoke-row"><b>' + esc(b.state) + "</b><span>from " + esc(listNames(b.regionList.slice(0, 2))) + "</span><span class=\"smoke-when\">" + esc(arriveText(b.earliest, t0)) + "</span>" +
-          '<span class="muted small">' + b.stations + " of " + b.total + " station" + (b.total === 1 ? "" : "s") + "</span></div>";
+        return '<div class="smoke-row"><b>' + esc(b.state) + i18("</b><span>from ") + esc(listNames(b.regionList.slice(0, 2))) + "</span><span class=\"smoke-when\">" + esc(arriveText(b.earliest, t0)) + "</span>" +
+          '<span class="muted small">' + b.stations + i18(" of ") + b.total + i18(" station") + (b.total === 1 ? "" : i18("s")) + "</span></div>";
       }).join("") + "</div>";
     }
     box.innerHTML = html + smokeNote();
@@ -1308,17 +1317,17 @@
 
   function renderSourcesSection() {
     var box = $("sources-body"), src = S.sources;
-    if (!src) { box.innerHTML = '<p class="muted">Fire and wind data has not been downloaded yet. It is added by the hourly update.</p>'; return; }
+    if (!src) { box.innerHTML = i18('<p class="muted">Fire and wind data has not been downloaded yet. It is added by the hourly update.</p>'); return; }
     var f = src.fires || {}, pts = freshFires(), w = windData(), html = '<div class="src-stats">';
     if (pts.length) {
       var newest = f.newest_recent_detection ? L.parseTime(f.newest_recent_detection) : null;
-      html += '<div class="src-stat"><span class="v fire">' + pts.length.toLocaleString("en-MY") + "</span><p>fire hotspots detected by NASA satellites around Malaysia, Sumatra and Borneo in the last 24 hours" +
-        (newest ? " (latest pass " + esc(L.fmtDateTime(newest)) + ")" : "") + ".</p></div>";
+      html += '<div class="src-stat"><span class="v fire">' + pts.length.toLocaleString("en-MY") + i18("</span><p>fire hotspots detected by NASA satellites around Malaysia, Sumatra and Borneo in the last 24 hours") +
+        (newest ? i18(" (latest pass ") + esc(L.fmtDateTime(newest)) + ")" : "") + ".</p></div>";
     } else if (f.newest_detection) {
-      html += '<div class="src-stat"><span class="v fire">0</span><p>No satellite fire detections from the last 36 hours are available. The newest detections NASA has published for this region are from ' +
-        esc(L.fmtDateTime(L.parseTime(f.newest_detection))) + ", so none are shown as current.</p></div>";
+      html += i18('<div class="src-stat"><span class="v fire">0</span><p>No satellite fire detections from the last 36 hours are available. The newest detections NASA has published for this region are from ') +
+        esc(L.fmtDateTime(L.parseTime(f.newest_detection))) + i18(", so none are shown as current.</p></div>");
     } else {
-      html += '<div class="src-stat"><span class="v fire">–</span><p>Satellite fire data could not be read on the last update.</p></div>';
+      html += i18('<div class="src-stat"><span class="v fire">–</span><p>Satellite fire data could not be read on the last update.</p></div>');
     }
     if (w) {
       // prevailing wind between Sumatra and the Peninsula
@@ -1329,14 +1338,14 @@
       }
       if (cnt) {
         var mu = su / cnt, mv = sv / cnt, spd = Math.sqrt(mu * mu + mv * mv) * 3.6;
-        html += '<div class="src-stat"><span class="v">' + Math.round(spd) + '</span><p>km/h: surface wind over Sumatra and the Strait of Malacca, mostly from the <b>' +
-          esc(L.windFrom(mu, mv)) + "</b> (weather model, " + esc(L.fmtDateTime(L.parseTime(w.fetched_at))) + ").</p></div>";
+        html += '<div class="src-stat"><span class="v">' + Math.round(spd) + i18('</span><p>km/h: surface wind over Sumatra and the Strait of Malacca, mostly from the <b>') +
+          esc(L.windFrom(mu, mv)) + i18("</b> (weather model, ") + esc(L.fmtDateTime(L.parseTime(w.fetched_at))) + ").</p></div>";
       }
     }
-    html += "</div><p>Smoke from fires upwind can be carried to Malaysia by these winds. The fires and winds on the map are as they are now; the dashed smoke paths are a forecast of where the air over fire areas is heading. None of this traces actual smoke, and fire detections do not show how much smoke a fire makes.</p>" +
-      '<button type="button" class="src-btn2" id="src-show">' + (M.sourcesOn ? "Hide fires and wind on the map" : "Show fires and wind on the map") + "</button>" +
-      '<p class="small muted">Fires: <a href="https://firms.modaps.eosdis.nasa.gov/" rel="noopener">NASA FIRMS</a> near-real-time VIIRS detections. ' + esc(f.note || "") +
-      " Wind: Open-Meteo 10 m wind, a model estimate. Neither is official IPU data.</p>" +
+    html += i18("</div><p>Smoke from fires upwind can be carried to Malaysia by these winds. The fires and winds on the map are as they are now; the dashed smoke paths are a forecast of where the air over fire areas is heading. None of this traces actual smoke, and fire detections do not show how much smoke a fire makes.</p>") +
+      '<button type="button" class="src-btn2" id="src-show">' + (M.sourcesOn ? i18("Hide fires and wind on the map") : i18("Show fires and wind on the map")) + "</button>" +
+      i18('<p class="small muted">Fires: <a href="https://firms.modaps.eosdis.nasa.gov/" rel="noopener">NASA FIRMS</a> near-real-time VIIRS detections. ') + esc(i18(f.note || "")) +
+      i18(" Wind: Open-Meteo 10 m wind, a model estimate. Neither is official IPU data.</p>") +
       '<div id="smoke-ov" class="smoke smoke-ov"></div>';
     box.innerHTML = html;
     renderSmokeOverview();
@@ -1346,38 +1355,38 @@
 
   function whenText(k) {
     var t = L.parseTime(k);
-    return L.fmtTime(t) + " on " + L.fmtDayKey(L.mytDateKey(t)).replace(/ \d{4}$/, "");
+    return L.fmtTime(t) + i18(" on ") + L.fmtDayKey(L.mytDateKey(t)).replace(/ \d{4}$/, "");
   }
 
   function forecastNote() {
     var f = S.forecast;
-    return '<p class="fc-note">This estimate is <b>not from DOE</b>. It is not the official IPU and is not used for the school closure check. ' +
-      "It scales the CAMS air-quality model forecast (Copernicus, via Open-Meteo) to this station's official readings, so it can be wrong, especially when weather changes quickly.</p>" +
-      (f && f.method ? '<details class="inline-details"><summary>How this estimate is made</summary><div><ul>' +
-        f.method.map(function (m) { return "<li>" + esc(m) + "</li>"; }).join("") + "</ul></div></details>" : "");
+    return i18('<p class="fc-note">This estimate is <b>not from DOE</b>. It is not the official IPU and is not used for the school closure check. ') +
+      i18("It scales the CAMS air-quality model forecast (Copernicus, via Open-Meteo) to this station's official readings, so it can be wrong, especially when weather changes quickly.</p>") +
+      (f && f.method ? i18('<details class="inline-details"><summary>How this estimate is made</summary><div><ul>') +
+        f.method.map(function (m) { return "<li>" + esc(i18(m)) + "</li>"; }).join("") + "</ul></div></details>" : "");
   }
 
   function renderForecast(box, st) {
     box.innerHTML = "";
     if (!st) return;
     var fcAll = S.forecast, fc = fcAll && fcAll.stations ? fcAll.stations[st.id] : null, n = now();
-    var head = '<div class="fc-head"><h3>Forecast for ' + esc(st.name) + '</h3><span class="fc-tag">Estimate, not official</span></div>';
-    if (!fcAll) { box.innerHTML = head + '<p class="muted">The forecast estimate has not been made yet. It is added by the hourly update.</p>'; return; }
+    var head = i18('<div class="fc-head"><h3>Forecast for ') + esc(st.name) + i18('</h3><span class="fc-tag">Estimate, not official</span></div>');
+    if (!fcAll) { box.innerHTML = head + i18('<p class="muted">The forecast estimate has not been made yet. It is added by the hourly update.</p>'); return; }
     var stat = L.forecastStatus(fc, st, n);
-    if (!stat.ok) { box.innerHTML = head + '<p class="muted">' + esc(fcAll.skipped && fcAll.skipped[st.id] ? "No estimate: " + fcAll.skipped[st.id] + "." : stat.reason) + "</p>" + forecastNote(); return; }
-    var reach = { likely: "Likely", possible: "Possible", unlikely: "Unlikely" }[fc.reach200_24h] || "—";
+    if (!stat.ok) { box.innerHTML = head + '<p class="muted">' + esc(fcAll.skipped && fcAll.skipped[st.id] ? i18("No estimate: ") + i18(fcAll.skipped[st.id]) + "." : stat.reason) + "</p>" + forecastNote(); return; }
+    var reach = { likely: i18("Likely"), possible: i18("Possible"), unlikely: i18("Unlikely") }[fc.reach200_24h] || "—";
     var pk = fc.peak24;
     var html = head +
-      '<p class="fc-lead">Estimated peak in the next 24 hours: <b>' + pk.est + "</b> (range " + pk.lo + " to " + pk.hi + "), around " + esc(whenText(pk.time)) + ".</p>" +
-      '<dl class="facts"><dt>Could reach 200 in the next 24 hours</dt><dd>' + reach + "</dd>" +
-      (fc.morning ? "<dt>Around 07:00 tomorrow</dt><dd>" + fc.morning.est + " (range " + fc.morning.lo + " to " + fc.morning.hi + ")</dd>" : "") +
-      "<dt>Confidence</dt><dd>" + (fc.confidence === "low" ? "Low" : "Normal") + "</dd>" +
-      (fcAll.model_stale ? "<dt>Model data</dt><dd>More than a day old</dd>" : "") + "</dl>" +
-      (fc.confidence === "low" ? '<p class="note">Low confidence: here the model sees much less haze than DOE measures, or the two have not matched well over the last day. Treat this as a rough guide.</p>' : "");
+      i18('<p class="fc-lead">Estimated peak in the next 24 hours: <b>') + pk.est + i18("</b> (range ") + pk.lo + i18(" to ") + pk.hi + i18("), around ") + esc(whenText(pk.time)) + ".</p>" +
+      i18('<dl class="facts"><dt>Could reach 200 in the next 24 hours</dt><dd>') + reach + "</dd>" +
+      (fc.morning ? i18("<dt>Around 07:00 tomorrow</dt><dd>") + fc.morning.est + i18(" (range ") + fc.morning.lo + i18(" to ") + fc.morning.hi + ")</dd>" : "") +
+      i18("<dt>Confidence</dt><dd>") + (fc.confidence === "low" ? i18("Low") : i18("Normal")) + "</dd>" +
+      (fcAll.model_stale ? i18("<dt>Model data</dt><dd>More than a day old</dd>") : "") + "</dl>" +
+      (fc.confidence === "low" ? i18('<p class="note">Low confidence: here the model sees much less haze than DOE measures, or the two have not matched well over the last day. Treat this as a rough guide.</p>') : "");
     box.innerHTML = html;
     var chart = document.createElement("div"); chart.className = "chart"; box.appendChild(chart);
     drawForecastChart(chart, st, fc);
-    box.insertAdjacentHTML("beforeend", '<div class="fc-legend"><span><i class="k-dot"></i>Official reading now (DOE)</span><span><i class="k-dash"></i>Estimate</span><span><i class="k-band"></i>Range</span></div>' + forecastNote());
+    box.insertAdjacentHTML("beforeend", i18('<div class="fc-legend"><span><i class="k-dot"></i>Official reading now (DOE)</span><span><i class="k-dash"></i>Estimate</span><span><i class="k-band"></i>Range</span></div>') + forecastNote());
   }
 
   function drawForecastChart(chart, st, fc) {
@@ -1388,7 +1397,7 @@
     var ymax = niceMax(Math.max(st.api, Math.max.apply(null, fc.hi)), 220);
     var sx = function (t) { return padL + ((t - x0) / Math.max(1, x1 - x0)) * (W2 - padL - padR); };
     var sy = function (v) { return H - padB - (v / ymax) * (H - padT - padB); };
-    var svg = svgEl("svg", { viewBox: "0 0 " + W2 + " " + H, width: W2, height: H, role: "img", "aria-label": "Forecast estimate for " + st.name + ", next " + fc.est.length + " hours" });
+    var svg = svgEl("svg", { viewBox: "0 0 " + W2 + " " + H, width: W2, height: H, role: "img", "aria-label": i18("Forecast estimate for ") + st.name + i18(", next ") + fc.est.length + i18(" hours") });
     for (var g = 0; g <= ymax; g += 50) {
       svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
       svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
@@ -1402,11 +1411,11 @@
     [[S.rule.outdoor.threshold, T().outdoor], [S.rule.closure.threshold, T().closure]].forEach(function (r) {
       svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(r[0]), y2: sy(r[0]), stroke: r[1], "stroke-dasharray": "4 4" }));
     });
-    svg.appendChild(svgEl("text", { x: W2 - padR - 2, y: sy(S.rule.closure.threshold) + 14, "font-size": 11, fill: T().closure, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "200: closure level"));
+    svg.appendChild(svgEl("text", { x: W2 - padR - 2, y: sy(S.rule.closure.threshold) + 14, "font-size": 11, fill: T().closure, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, i18("200: closure level")));
     var t24 = x0 + 24 * 3600000;
     if (t24 < x1) {
       svg.appendChild(svgEl("line", { x1: sx(t24), x2: sx(t24), y1: padT, y2: H - padB, stroke: T().axis, "stroke-dasharray": "2 3", opacity: 0.7 }));
-      svg.appendChild(svgEl("text", { x: sx(t24) - 4, y: padT + 10, "font-size": 10.5, fill: T().axis, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "next 24 h"));
+      svg.appendChild(svgEl("text", { x: sx(t24) - 4, y: padT + 10, "font-size": 10.5, fill: T().axis, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, i18("next 24 h")));
     }
     // range band, then dashed estimate line, both starting at the official reading
     var top = [[x0, st.api]].concat(times.map(function (t, k) { return [t, fc.hi[k]]; }));
@@ -1417,7 +1426,7 @@
     svg.appendChild(svgEl("path", { d: line.map(function (p, k) { return (k ? "L" : "M") + sx(p[0]).toFixed(1) + " " + sy(p[1]).toFixed(1); }).join(" "),
       fill: "none", stroke: T().forecast, color: T().forecast, "stroke-width": 2.2, "stroke-dasharray": "6 4", "stroke-linecap": "round", "class": "series" }));
     svg.appendChild(svgEl("circle", { cx: sx(x0), cy: sy(st.api), r: 5, fill: T().ink, stroke: T().halo, "stroke-width": 2 }));
-    svg.appendChild(svgEl("text", { x: sx(x0) + 8, y: sy(st.api) - 8, "font-size": 11, fill: T().ink, stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "Official now: " + st.api));
+    svg.appendChild(svgEl("text", { x: sx(x0) + 8, y: sy(st.api) - 8, "font-size": 11, fill: T().ink, stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, i18("Official now: ") + st.api));
     var cross = svgEl("line", { y1: padT, y2: H - padB, stroke: T().ink, opacity: 0 });
     svg.appendChild(cross);
     var overlay = svgEl("rect", { x: padL, y: padT, width: W2 - padL - padR, height: H - padT - padB, fill: "transparent" });
@@ -1425,7 +1434,7 @@
       var rect = svg.getBoundingClientRect(), px = (ev.clientX - rect.left) * (W2 / rect.width), best = 0;
       times.forEach(function (t, k) { if (Math.abs(sx(t) - px) < Math.abs(sx(times[best]) - px)) best = k; });
       cross.setAttribute("x1", sx(times[best])); cross.setAttribute("x2", sx(times[best])); cross.setAttribute("opacity", 0.3);
-      showTip("<b>Estimate " + fc.est[best] + "</b> (range " + fc.lo[best] + " to " + fc.hi[best] + ")<br>" + esc(L.fmtDateTime(new Date(times[best]))) + "<br>Not official IPU", ev.clientX, ev.clientY);
+      showTip(i18("<b>Estimate ") + fc.est[best] + i18("</b> (range ") + fc.lo[best] + i18(" to ") + fc.hi[best] + ")<br>" + esc(L.fmtDateTime(new Date(times[best]))) + i18("<br>Not official IPU"), ev.clientX, ev.clientY);
     }
     overlay.addEventListener("mousemove", hover);
     overlay.addEventListener("touchstart", function (ev) { if (ev.touches[0]) hover(ev.touches[0]); }, { passive: true });
@@ -1440,20 +1449,20 @@
     var rows = stations().filter(function (s) { return L.forecastStatus(fc.stations[s.id], s, n).ok; })
       .map(function (s) { return { s: s, f: fc.stations[s.id] }; })
       .sort(function (a, b) { return b.f.peak24.est - a.f.peak24.est; });
-    var head = '<div class="fc-head"><h3>Next 24 hours</h3><span class="fc-tag">Estimate, not official</span></div>';
-    if (!rows.length) { box.innerHTML = head + '<p class="muted">No forecast estimate is available right now.</p>'; return; }
+    var head = i18('<div class="fc-head"><h3>Next 24 hours</h3><span class="fc-tag">Estimate, not official</span></div>');
+    if (!rows.length) { box.innerHTML = head + i18('<p class="muted">No forecast estimate is available right now.</p>'); return; }
     var likely = rows.filter(function (r) { return r.f.reach200_24h === "likely"; }).length;
     var possible = rows.filter(function (r) { return r.f.reach200_24h === "possible"; }).length;
     var lead = likely || possible
-      ? "The estimate suggests " + (likely ? likely + " station" + (likely > 1 ? "s are" : " is") + " likely" + (possible ? " and " : "") : "") +
-        (possible ? possible + " station" + (possible > 1 ? "s" : "") + " could possibly" : "") + " reach 200 in the next 24 hours."
-      : "The estimate does not expect any station to reach 200 in the next 24 hours.";
-    var label = { likely: "200 likely", possible: "200 possible", unlikely: "" };
+      ? i18("The estimate suggests ") + (likely ? likely + i18(" station") + (likely > 1 ? i18("s are") : i18(" is")) + i18(" likely") + (possible ? i18(" and ") : "") : "") +
+        (possible ? possible + i18(" station") + (possible > 1 ? i18("s") : "") + i18(" could possibly") : "") + i18(" reach 200 in the next 24 hours.")
+      : i18("The estimate does not expect any station to reach 200 in the next 24 hours.");
+    var label = { likely: i18("200 likely"), possible: i18("200 possible"), unlikely: "" };
     box.innerHTML = head + '<p class="fc-lead">' + esc(lead) + '</p><div class="fc-list">' + rows.slice(0, 5).map(function (r) {
       return '<button type="button" class="fc-row" data-station="' + esc(r.s.id) + '"><span class="nm">' + esc(r.s.name) + '</span><span class="pk">' + r.f.peak24.est + "</span>" +
-        '<span class="sub">' + esc(r.s.state) + ", estimated peak " + r.f.peak24.lo + " to " + r.f.peak24.hi + " around " + esc(whenText(r.f.peak24.time)) +
-        (label[r.f.reach200_24h] ? ". " + label[r.f.reach200_24h] : "") + (r.f.confidence === "low" ? ", low confidence" : "") + "</span></button>";
-    }).join("") + '</div><p class="fc-note">Highest estimated peaks. These are model estimates, not DOE readings, and are not used for the school closure check.</p>';
+        '<span class="sub">' + esc(r.s.state) + i18(", estimated peak ") + r.f.peak24.lo + i18(" to ") + r.f.peak24.hi + i18(" around ") + esc(whenText(r.f.peak24.time)) +
+        (label[r.f.reach200_24h] ? ". " + label[r.f.reach200_24h] : "") + (r.f.confidence === "low" ? i18(", low confidence") : "") + "</span></button>";
+    }).join("") + i18('</div><p class="fc-note">Highest estimated peaks. These are model estimates, not DOE readings, and are not used for the school closure check.</p>');
   }
 
   // ================================================================ tooltip
@@ -1476,28 +1485,28 @@
       if (!list.length) return "";
       var first = list[0];
       return '<button type="button" data-station="' + esc(first.id) + '">' + esc(first.name + ", " + first.state) + "</button>" +
-        (list.length > 1 ? '<span class="small muted">and ' + (list.length - 1) + " more</span>" : "");
+        (list.length > 1 ? i18('<span class="small muted">and ') + (list.length - 1) + i18(" more</span>") : "");
     }
     var reached = sum.current.filter(function (s) { return S.rule && L.meets(s.api, S.rule.closure); });
     var html = "";
     if (sum.highest) {
-      html += '<span class="k">Highest</span><span class="v" style="--c:' + cat(sum.highest.api).color + '" data-count="' + sum.highest.api + '">' + sum.highest.api + '</span><span class="p">' + badge(sum.highest.api) + who(sum.highestAll) + "</span>";
-      html += '<span class="k">Lowest</span><span class="v" style="--c:' + cat(sum.lowest.api).color + '" data-count="' + sum.lowest.api + '">' + sum.lowest.api + '</span><span class="p">' + badge(sum.lowest.api) + who(sum.lowestAll) + "</span>";
+      html += i18('<span class="k">Highest</span><span class="v" style="--c:') + cat(sum.highest.api).color + '" data-count="' + sum.highest.api + '">' + sum.highest.api + '</span><span class="p">' + badge(sum.highest.api) + who(sum.highestAll) + "</span>";
+      html += i18('<span class="k">Lowest</span><span class="v" style="--c:') + cat(sum.lowest.api).color + '" data-count="' + sum.lowest.api + '">' + sum.lowest.api + '</span><span class="p">' + badge(sum.lowest.api) + who(sum.lowestAll) + "</span>";
     } else {
-      html += '<span class="summary-foot">No station has a current reading.</span>';
+      html += i18('<span class="summary-foot">No station has a current reading.</span>');
     }
     var threshold = S.rule ? S.rule.closure.threshold : 200;
-    html += '<p class="summary-foot">' + sum.current.length + " of " + stations().length + " stations have a current reading. " +
-      (reached.length ? "<b>" + reached.length + " " + (reached.length > 1 ? "are" : "is") + " at the school-closure level of " + threshold + " or more.</b>"
-                      : "None is at the school-closure level of " + threshold + ".") + "</p>";
+    html += '<p class="summary-foot">' + sum.current.length + i18(" of ") + stations().length + i18(" stations have a current reading. ") +
+      (reached.length ? "<b>" + reached.length + " " + (reached.length > 1 ? i18("are") : i18("is")) + i18(" at the school-closure level of ") + threshold + i18(" or more.</b>")
+                      : i18("None is at the school-closure level of ") + threshold + ".") + "</p>";
     $("summary").innerHTML = html;
     Array.prototype.forEach.call(document.querySelectorAll("#summary [data-count]"), function (el) { countUp(el, Number(el.dataset.count)); });
 
     // distribution bar
     var total = sum.current.length || 1;
-    var dist = '<div class="dist-bar" role="img" aria-label="Stations by category">' + L.CATEGORIES.map(function (c) {
+    var dist = '<div class="dist-bar" role="img" aria-label="Stations by category">' + L.categories().map(function (c) {
       return sum.counts[c.key] ? '<span data-w="' + (sum.counts[c.key] / total * 100) + '" style="' + swatch(T().cats[c.key]) + '"></span>' : "";
-    }).join("") + '</div><div class="dist-legend">' + L.CATEGORIES.map(function (c) {
+    }).join("") + '</div><div class="dist-legend">' + L.categories().map(function (c) {
       var range = c.max === Infinity ? "300+" : c.min + "–" + c.max;
       return '<span><i style="' + swatch(T().cats[c.key]) + '"></i>' + esc(c.label) + ' <span class="muted">' + range + "</span> <b>" + sum.counts[c.key] + "</b></span>";
     }).join("") + "</div>";
@@ -1511,12 +1520,12 @@
     var o = S.rule ? S.rule.outdoor.threshold : 100, cl = S.rule ? S.rule.closure.threshold : 200;
     $("state-bars").innerHTML = rows.length ? rows.map(function (r) {
       var c = cat(r.api);
-      return '<button type="button" class="srow" data-state="' + esc(r.state) + '" aria-label="' + esc(r.state + ": highest " + r.api + ", " + c.label + ", at " + r.name) + '">' +
+      return '<button type="button" class="srow" data-state="' + esc(r.state) + '" aria-label="' + esc(r.state + i18(": highest ") + r.api + ", " + c.label + i18(", at ") + r.name) + '">' +
         '<span class="s-name">' + esc(r.state) + '</span><span class="track"><span class="fill" data-w="' + (r.api / max * 100) + '" style="' + swatch(c.color) + '"></span>' +
         '<span class="tick" style="left:' + (o / max * 100) + '%"></span><span class="tick closure" style="left:' + (cl / max * 100) + '%"></span></span>' +
         '<span class="s-val">' + r.api + "</span></button>";
-    }).join("") + '<p class="bars-key">Dashed marks: ' + o + " (outdoor activities stop above this) and " + cl + " (school-closure level). Tap a state to see it on the map.</p>"
-      : '<p class="muted">No current readings to show.</p>';
+    }).join("") + i18('<p class="bars-key">Dashed marks: ') + o + i18(" (outdoor activities stop above this) and ") + cl + i18(" (school-closure level). Tap a state to see it on the map.</p>")
+      : i18('<p class="muted">No current readings to show.</p>');
     Array.prototype.forEach.call(document.querySelectorAll(".srow .fill"), function (el) { growTo(el, Number(el.dataset.w)); });
   }
 
@@ -1525,7 +1534,7 @@
   function populateStateFilter() {
     var sel = $("f-state"), cur = sel.value, names = {};
     stations().forEach(function (s) { if (s.state) names[s.state] = true; });
-    sel.innerHTML = '<option value="">All states</option>' + Object.keys(names).sort().map(function (nm) {
+    sel.innerHTML = i18('<option value="">All states</option>') + Object.keys(names).sort().map(function (nm) {
       return '<option value="' + esc(nm) + '">' + esc(nm) + "</option>";
     }).join("");
     sel.value = cur;
@@ -1559,10 +1568,10 @@
         '<span class="sub">' + (sort === "state" ? "" : esc(s.state) + ", ") + esc(s.id) + (s.place ? ", " + esc(L.tidy(s.place)) : "") + "</span></td>" +
         '<td class="num api">' + (cur ? esc(s.api) : "—") + "</td>" +
         '<td class="hide-sm">' + (cur ? badge(s.api) + (pol ? '<span class="sub">' + esc(pol) + "</span>" : "") : badge(null)) +
-        (S.unusual[s.id] ? '<span class="sub unusual-tag">Unusual vs nearby stations</span>' : "") + "</td>" +
-        "<td>" + esc(readingTime(s.observed, n)) + (!cur && s.api !== null && s.observed ? '<span class="sub">last ' + esc(s.api) + ", outdated</span>" : "") + "</td></tr>";
+        (S.unusual[s.id] ? i18('<span class="sub unusual-tag">Unusual vs nearby stations</span>') : "") + "</td>" +
+        "<td>" + esc(readingTime(s.observed, n)) + (!cur && s.api !== null && s.observed ? i18('<span class="sub">last ') + esc(s.api) + i18(", outdated</span>") : "") + "</td></tr>";
     });
-    if (!list.length) html = '<tr><td colspan="4" class="muted">No stations match.</td></tr>';
+    if (!list.length) html = i18('<tr><td colspan="4" class="muted">No stations match.</td></tr>');
     document.querySelector("#station-table tbody").innerHTML = html;
   }
 
@@ -1609,6 +1618,7 @@
         "&label=" + encodeURIComponent(sel.label || "") + "&src=" + encodeURIComponent(sel.source || "") +
         (sel.state ? "&st=" + encodeURIComponent(sel.state) : "");
     }
+    if (I18.lang === "ms") h += (h ? "&" : "") + "lang=ms";
     try { history.replaceState(null, "", h ? "#" + h : location.pathname + location.search); } catch (e) { /* ignore */ }
   }
 
@@ -1624,7 +1634,7 @@
     if (q.at) {
       var p = q.at.split(",").map(Number);
       if (p.length === 2 && isFinite(p[0]) && isFinite(p[1])) {
-        return { type: "place", lat: p[0], lon: p[1], label: q.label || "Selected location", source: q.src || "link", state: q.st || null };
+        return { type: "place", lat: p[0], lon: p[1], label: q.label || i18("Selected location"), source: q.src || "link", state: q.st || null };
       }
     }
     return null;
@@ -1640,7 +1650,7 @@
     if (!sel) { box.hidden = true; return; }
     box.hidden = false;
     if (sel.type === "school-code") {
-      $("sel-title").textContent = "Loading school…";
+      $("sel-title").textContent = i18("Loading school…");
       $("loc-info").innerHTML = ""; $("prediction").innerHTML = ""; $("trend").innerHTML = ""; $("forecast").innerHTML = ""; $("airpath").innerHTML = "";
       loadSchools().then(function () {
         var r = (S.schools || []).filter(function (x) { return x[0] === sel.code; })[0];
@@ -1654,16 +1664,16 @@
     var st = null, lat, lon, title, sub;
     if (sel.type === "station") {
       st = stationById(sel.id);
-      if (!st) { $("sel-title").textContent = "Station not found"; $("loc-info").innerHTML = '<p class="muted">This station is not in the current data.</p>'; $("prediction").innerHTML = ""; $("trend").innerHTML = ""; return; }
-      title = st.name; sub = "DOE monitoring station in " + st.state + (st.place ? ", at " + L.tidy(st.place) : "") + " (" + st.id + ")";
+      if (!st) { $("sel-title").textContent = i18("Station not found"); $("loc-info").innerHTML = i18('<p class="muted">This station is not in the current data.</p>'); $("prediction").innerHTML = ""; $("trend").innerHTML = ""; return; }
+      title = st.name; sub = i18("DOE monitoring station in ") + st.state + (st.place ? i18(", at ") + L.tidy(st.place) : "") + " (" + st.id + ")";
       lat = st.lat; lon = st.lon;
     } else {
       title = sel.label; lat = sel.lat; lon = sel.lon;
-      var kind = sel.type === "school" ? "School" : sel.type === "locality" ? "Town" : "Place";
+      var kind = sel.type === "school" ? i18("School") : sel.type === "locality" ? i18("Town") : i18("Place");
       var where = S.bounds ? L.locate(lon, lat, S.bounds) : null;
       var loc = sel.type === "school" ? [sel.town, sel.district, sel.state].filter(Boolean).join(", ")
-              : where ? where.district + (where.district !== where.state ? " district, " + where.state : "") : [sel.town, sel.state].filter(Boolean).join(", ");
-      sub = kind + (loc ? " in " + loc : "") + (sel.code ? " (" + sel.code + ")" : "");
+              : where ? where.district + (where.district !== where.state ? i18(" district, ") + where.state : "") : [sel.town, sel.state].filter(Boolean).join(", ");
+      sub = kind + (loc ? i18(" in ") + loc : "") + (sel.code ? " (" + sel.code + ")" : "");
     }
     $("sel-title").textContent = title;
 
@@ -1671,31 +1681,31 @@
     var ref = m && m.reference;
     var html = '<p class="sel-sub">' + esc(sub) + "</p>";
     if (!m) {
-      html += '<p class="note">No station coordinates are available, so a reference station cannot be chosen.</p>';
+      html += i18('<p class="note">No station coordinates are available, so a reference station cannot be chosen.</p>');
     } else if (!ref) {
-      html += '<p class="note">No station near here has a current reading. Readings may be outdated; see the notice at the top of the page.</p>';
+      html += i18('<p class="note">No station near here has a current reading. Readings may be outdated; see the notice at the top of the page.</p>');
       if (st && st.api !== null && st.observed) {
-        html += '<p class="note">Last reading at this station: ' + esc(st.api) + " at " + esc(L.fmtDateTime(L.parseTime(st.observed))) + ". This is outdated, not a current reading.</p>";
+        html += i18('<p class="note">Last reading at this station: ') + esc(st.api) + i18(" at ") + esc(L.fmtDateTime(L.parseTime(st.observed))) + i18(". This is outdated, not a current reading.</p>");
       }
     } else {
       var rs = ref.station, self = sel.type === "station" && rs.id === sel.id;
       html += '<div class="reading" style="--c:' + cat(rs.api).color + '"><span class="big">' + esc(rs.api) + '</span><span class="meta">' + badge(rs.api) +
-        '<span class="where">' + (self ? "IPU at this station" : "IPU at " + esc(rs.name) + " station, " + (ref.km < 1 ? "under 1 km" : Math.round(ref.km) + " km") + " away") +
+        '<span class="where">' + (self ? i18("IPU at this station") : i18("IPU at ") + esc(rs.name) + i18(" station, ") + (ref.km < 1 ? i18("under 1 km") : Math.round(ref.km) + i18(" km")) + i18(" away")) +
         "</span></span></div>" +
-        '<p class="small muted">Reading for ' + esc(L.fmtDateTime(L.parseTime(rs.observed))) +
-        (L.pollutantName(rs.pollutant) ? ". Main pollutant: " + esc(L.pollutantName(rs.pollutant)) : "") + ".</p>";
+        i18('<p class="small muted">Reading for ') + esc(L.fmtDateTime(L.parseTime(rs.observed))) +
+        (L.pollutantName(rs.pollutant) ? i18(". Main pollutant: ") + esc(L.pollutantName(rs.pollutant)) : "") + ".</p>";
       if (!self) {
-        html += '<p class="ref-note">This is the reading at the DOE monitoring station ' + esc(rs.name) + " (" + esc(rs.id) + "), not a measurement taken at " +
-          (sel.type === "school" ? "the school" : "this location") + " itself.</p>";
+        html += i18('<p class="ref-note">This is the reading at the DOE monitoring station ') + esc(rs.name) + " (" + esc(rs.id) + i18("), not a measurement taken at ") +
+          (sel.type === "school" ? i18("the school") : i18("this location")) + i18(" itself.</p>");
       }
       if (st && !self) {
-        html += '<p class="note">This station has no current reading, so the nearest station with one is shown.</p>';
+        html += i18('<p class="note">This station has no current reading, so the nearest station with one is shown.</p>');
       }
       m.notes.forEach(function (t) { html += '<p class="note">' + esc(t) + "</p>"; });
       html += unusualNote(rs);
     }
     if (sel.type !== "station" && sel.source) {
-      html += '<p class="small muted">' + esc(SOURCE_TEXT[sel.source] || sel.source) + (sel.sub && sel.source === "device" ? ". " + esc(sel.sub) : "") + ".</p>";
+      html += '<p class="small muted">' + esc(i18(SOURCE_TEXT[sel.source]) || sel.source) + (sel.sub && sel.source === "device" ? ". " + esc(sel.sub) : "") + ".</p>";
     }
     if (ref) html += nowAirHTML(ref.station) + doseHTML(ref.station);
     $("loc-info").innerHTML = html;
@@ -1707,8 +1717,8 @@
     if (m && m.shown.length) {
       predBox.insertAdjacentHTML("beforeend", nearHTML(m, ref, n));
     }
-    if (ref) renderTrend($("trend"), ref.station, "Last 24 hours at " + ref.station.name);
-    else if (st) renderTrend($("trend"), st, "Last 24 hours at " + st.name);
+    if (ref) renderTrend($("trend"), ref.station, i18("Last 24 hours at ") + ref.station.name);
+    else if (st) renderTrend($("trend"), st, i18("Last 24 hours at ") + st.name);
     else $("trend").innerHTML = "";
     renderForecast($("forecast"), ref ? ref.station : st);
     renderAirPath();
@@ -1718,9 +1728,9 @@
     if (S.lobbyOn) renderLobby();
     var zone = updateZones();
     if (zone) {
-      $("loc-info").insertAdjacentHTML("beforeend", '<p class="zone-note">You are inside the area covered by <b>' + esc(zone.station.name) +
-        "</b> station: everywhere in the highlighted zone on the map is closer to " + esc(zone.station.name) +
-        " than to any other station with a current reading. The dashed lines between zones are where two stations are equally far away.</p>");
+      $("loc-info").insertAdjacentHTML("beforeend", i18('<p class="zone-note">You are inside the area covered by <b>') + esc(zone.station.name) +
+        i18("</b> station: everywhere in the highlighted zone on the map is closer to ") + esc(zone.station.name) +
+        i18(" than to any other station with a current reading. The dashed lines between zones are where two stations are equally far away.</p>"));
     }
 
     // map
@@ -1743,13 +1753,13 @@
   }
 
   function nearHTML(m, ref, n) {
-    return '<div class="near"><h3>Nearest stations</h3><div class="table-wrap"><table class="mini"><thead><tr><th>Station</th><th class="num">Distance</th><th class="num">IPU</th><th class="hide-sm">Time</th></tr></thead><tbody>' +
+    return i18('<div class="near"><h3>Nearest stations</h3><div class="table-wrap"><table class="mini"><thead><tr><th>Station</th><th class="num">Distance</th><th class="num">IPU</th><th class="hide-sm">Time</th></tr></thead><tbody>') +
       m.shown.map(function (x) {
         var s = x.station, cur = L.stationCurrent(s, n), c = cat(cur ? s.api : null);
         return '<tr tabindex="0" data-station="' + esc(s.id) + '"' + (cur ? "" : ' class="outdated"') + ">" +
-          '<td><span class="dot" style="' + swatch(c ? c.color : T().off) + '"></span>' + esc(s.name) + (ref && x === ref ? " (reference)" : "") +
+          '<td><span class="dot" style="' + swatch(c ? c.color : T().off) + '"></span>' + esc(s.name) + (ref && x === ref ? i18(" (reference)") : "") +
           '<span class="sub">' + esc(s.state) + "</span></td>" +
-          '<td class="num">' + (x.km < 1 ? "&lt;1" : Math.round(x.km)) + " km</td>" +
+          '<td class="num">' + (x.km < 1 ? "&lt;1" : Math.round(x.km)) + i18(" km</td>") +
           '<td class="num api">' + (cur ? esc(s.api) : "—") + '</td><td class="hide-sm">' + esc(readingTime(s.observed, n)) + "</td></tr>";
       }).join("") + "</tbody></table></div></div>";
   }
@@ -1757,18 +1767,18 @@
   function disclaimer(official) {
     var r = S.rule;
     return '<div class="disclaimer">' + (official
-      ? "<b>Official closures shown here are taken from Bernama reports</b> of announcements by KPM or the state. Confirm details with your school or the State Education Department (JPN). The IPU check is a prediction, not an announcement. "
-      : "<b>This is a prediction, not an official closure announcement.</b> It is worked out from official DOE readings. Closures are decided and announced by KPM, the State Education Department (JPN) or the District Education Office (PPD), so check their announcements. ") +
-      "Rule used: " + esc(r.closure.summary) + " (" + esc(r.name) + ", in force from " + esc(L.fmtDayKey(r.effective_from)) + '). <a href="#about">How the prediction works</a></div>';
+      ? i18("<b>Official closures shown here are taken from Bernama reports</b> of announcements by KPM or the state. Confirm details with your school or the State Education Department (JPN). The IPU check is a prediction, not an announcement. ")
+      : i18("<b>This is a prediction, not an official closure announcement.</b> It is worked out from official DOE readings. Closures are decided and announced by KPM, the State Education Department (JPN) or the District Education Office (PPD), so check their announcements. ")) +
+      i18("Rule used: ") + esc(loc(r.closure, "summary")) + " (" + esc(loc(r, "name")) + i18(", in force from ") + esc(L.fmtDayKey(r.effective_from)) + i18('). <a href="#about">How the prediction works</a></div>');
   }
 
   function dayShort(key) { return L.fmtDayKey(key).replace(/ \d{4}$/, ""); }
-  function untilText(c, last) { return c.until_further_notice ? "until further notice" : "until " + dayShort(last || c.to); }
-  function rangeText(from, to) { return from === to ? dayShort(from) : dayShort(from) + " to " + dayShort(to); }
+  function untilText(c, last) { return c.until_further_notice ? i18("until further notice") : i18("until ") + dayShort(last || c.to); }
+  function rangeText(from, to) { return from === to ? dayShort(from) : dayShort(from) + i18(" to ") + dayShort(to); }
 
   function checkedText() {
     var t = S.ann && L.parseTime(S.ann.checked_at);
-    return t ? L.fmtDateTime(t) : "never";
+    return t ? L.fmtDateTime(t) : i18("never");
   }
   function annStale() {
     var t = S.ann && L.parseTime(S.ann.checked_at);
@@ -1788,84 +1798,88 @@
   }
 
   function sourceLine(c) {
-    var src = c.sources[0], t = L.parseTime(src.published);
-    return '<p class="off-src">Reported by Bernama' + (t ? ", " + esc(L.fmtDateTime(t)) : "") + ': <a href="' + esc(src.url) + '" rel="noopener">' + esc(src.title) + "</a>" +
-      (c.sources.length > 1 ? ' (also in <a href="' + esc(c.sources[1].url) + '" rel="noopener">' + (c.sources[1].language === "ms" ? "Bahasa Melayu" : "another report") + "</a>)" : "") + "</p>";
+    // the Bernama report in the page language first, when there is one
+    var list = c.sources.slice(), want = I18.lang === "ms" ? "ms" : "en";
+    list.sort(function (a, b) { return (a.language === want ? 0 : 1) - (b.language === want ? 0 : 1); });
+    var src = list[0], other = list[1], t = L.parseTime(src.published);
+    var otherName = !other ? "" : other.language === "ms" ? i18("Bahasa Melayu") : other.language === "en" ? i18("English") : i18("another report");
+    return i18('<p class="off-src">Reported by Bernama') + (t ? ", " + esc(L.fmtDateTime(t)) : "") + ': <a href="' + esc(src.url) + '" rel="noopener">' + esc(src.title) + "</a>" +
+      (other ? i18(' (also in <a href="') + esc(other.url) + '" rel="noopener">' + otherName + "</a>)" : "") + "</p>";
   }
 
   function closureDetails(c) {
-    return '<p class="pred-detail">' + esc(c.covers) + (c.learning ? " " + esc(c.learning) : "") + "</p>" + sourceLine(c) +
-      '<details class="inline-details"><summary>More about this announcement</summary><div><dl class="facts">' +
-      "<dt>Announced</dt><dd>" + esc(dayShort(c.announced_on)) + ", by " + esc(c.announced_by) + "</dd>" +
-      (c.not_covered ? "<dt>Not covered</dt><dd>" + esc(c.not_covered) + "</dd>" : "") +
-      (c.exceptions ? "<dt>Exceptions</dt><dd>" + esc(c.exceptions) + "</dd>" : "") +
-      (c.dates_note ? "<dt>Dates</dt><dd>" + esc(c.dates_note) + "</dd>" : "") +
-      (c.previous ? "<dt>Before this</dt><dd>" + esc(c.previous) + "</dd>" : "") + "</dl></div></details>";
+    return '<p class="pred-detail">' + esc(loc(c, "covers")) + (c.learning ? " " + esc(loc(c, "learning")) : "") + "</p>" + sourceLine(c) +
+      i18('<details class="inline-details"><summary>More about this announcement</summary><div><dl class="facts">') +
+      i18("<dt>Announced</dt><dd>") + esc(dayShort(c.announced_on)) + i18(", by ") + esc(loc(c, "announced_by")) + "</dd>" +
+      (c.not_covered ? i18("<dt>Not covered</dt><dd>") + esc(loc(c, "not_covered")) + "</dd>" : "") +
+      (c.exceptions ? i18("<dt>Exceptions</dt><dd>") + esc(loc(c, "exceptions")) + "</dd>" : "") +
+      (c.dates_note ? i18("<dt>Dates</dt><dd>") + esc(loc(c, "dates_note")) + "</dd>" : "") +
+      (c.previous ? i18("<dt>Before this</dt><dd>") + esc(loc(c, "previous")) + "</dd>" : "") + "</dl></div></details>";
   }
 
   /* Official closure part of the closure check. closed = schools here are officially closed tomorrow. */
   function officialHTML(place, n) {
     if (!S.ann || !place || !place.state) return { closed: false, any: false, html: "" };
     var o = L.officialStatus(place, n, S.ann), html = "", stale = annStale();
-    var staleNote = (stale ? '<p class="note">Announcements were last checked ' + esc(checkedText()) + ", later than planned, so a newer announcement may be missing.</p>" : "") +
-      (calFeeds().length ? '<p class="cal-link-p"><button type="button" class="link-btn cal-link" data-cal-state="' + esc(place.state) + '">Get official ' + esc(place.state) + " closures in your calendar</button></p>" : "");
+    var staleNote = (stale ? i18('<p class="note">Announcements were last checked ') + esc(checkedText()) + i18(", later than planned, so a newer announcement may be missing.</p>") : "") +
+      (calFeeds().length ? '<p class="cal-link-p"><button type="button" class="link-btn cal-link" data-cal-state="' + esc(place.state) + i18('">Get official ') + esc(place.state) + i18(" closures in your calendar</button></p>") : "");
     if (o.tomorrow) {
       var c = o.tomorrow, last = o.lastDay || c.to;
       var ufn = c.until_further_notice || (o.today && o.today.until_further_notice);
-      html = '<div class="pred-status official_closed"><span class="off-chip">Official</span>Schools closed ' +
-        esc(ufn ? "from " + dayShort(o.today ? o.today.from : c.from) + " until further notice" : rangeText(o.today ? o.today.from : c.from, last)) + "</div>" +
-        '<p class="pred-detail"><b>' + (o.today ? "Schools here are closed today and tomorrow" : "Schools here are closed from tomorrow") + ".</b> " +
-        "An official closure covers " + esc(L.areaLabel(c)) + " " + esc(ufn ? "until further notice" : "until " + dayShort(last)) + "." + (last !== c.to && !ufn ? " It includes a later extension." : "") + "</p>" +
+      html = i18('<div class="pred-status official_closed"><span class="off-chip">Official</span>Schools closed ') +
+        esc(ufn ? i18("from ") + dayShort(o.today ? o.today.from : c.from) + i18(" until further notice") : rangeText(o.today ? o.today.from : c.from, last)) + "</div>" +
+        '<p class="pred-detail"><b>' + (o.today ? i18("Schools here are closed today and tomorrow") : i18("Schools here are closed from tomorrow")) + ".</b> " +
+        i18("An official closure covers ") + esc(L.areaLabel(c)) + " " + esc(ufn ? i18("until further notice") : i18("until ") + dayShort(last)) + "." + (last !== c.to && !ufn ? i18(" It includes a later extension.") : "") + "</p>" +
         closureDetails(c) + rrLine(c, true) + staleNote;
       return { closed: true, any: true, html: html };
     }
     if (o.today) {
-      html = '<div class="pred-status official_info"><span class="off-chip">Official</span>Announced closure ends today</div>' +
-        '<p class="pred-detail">The official closure for ' + esc(L.areaLabel(o.today)) + " (" + esc(rangeText(o.today.from, o.today.to)) + ") ends today. " +
-        "No extension had been reported by Bernama when announcements were last checked (" + esc(checkedText()) + "). The IPU check below is for tomorrow.</p>" + sourceLine(o.today) + rrLine(o.today, true) + staleNote;
+      html = i18('<div class="pred-status official_info"><span class="off-chip">Official</span>Announced closure ends today</div>') +
+        i18('<p class="pred-detail">The official closure for ') + esc(L.areaLabel(o.today)) + " (" + esc(rangeText(o.today.from, o.today.to)) + i18(") ends today. ") +
+        i18("No extension had been reported by Bernama when announcements were last checked (") + esc(checkedText()) + i18("). The IPU check below is for tomorrow.</p>") + sourceLine(o.today) + rrLine(o.today, true) + staleNote;
       return { closed: false, any: true, html: html };
     }
     if (o.upcoming) {
-      html = '<p class="off-note"><span class="off-chip">Official</span> Schools here are announced to close ' + esc(rangeText(o.upcoming.from, o.upcoming.to)) + ".</p>" + sourceLine(o.upcoming);
+      html = i18('<p class="off-note"><span class="off-chip">Official</span> Schools here are announced to close ') + esc(rangeText(o.upcoming.from, o.upcoming.to)) + ".</p>" + sourceLine(o.upcoming);
       return { closed: false, any: true, html: html + staleNote };
     }
     if (o.ended) {
-      html = '<p class="off-note"><span class="off-chip">Official</span> The announced closure here ended on ' + esc(dayShort(o.ended.to)) +
-        ". No extension had been reported by Bernama when announcements were last checked (" + esc(checkedText()) + ").</p>" + sourceLine(o.ended) + rrLine(o.ended, true);
+      html = i18('<p class="off-note"><span class="off-chip">Official</span> The announced closure here ended on ') + esc(dayShort(o.ended.to)) +
+        i18(". No extension had been reported by Bernama when announcements were last checked (") + esc(checkedText()) + ").</p>" + sourceLine(o.ended) + rrLine(o.ended, true);
       return { closed: false, any: true, html: html + staleNote };
     }
-    return { closed: false, any: false, html: '<p class="off-none">No official closure reported by Bernama for ' +
-      esc(place.district && place.district !== place.state ? place.district + ", " + place.state : place.state) + " (last checked " + esc(checkedText()) + ").</p>" + staleNote };
+    return { closed: false, any: false, html: i18('<p class="off-none">No official closure reported by Bernama for ') +
+      esc(place.district && place.district !== place.state ? place.district + ", " + place.state : place.state) + i18(" (last checked ") + esc(checkedText()) + ").</p>" + staleNote };
   }
 
   function predictionHTML(st, stateName, m, place) {
     var n = now();
-    if (!S.rule) return "<h3>School closure check</h3><p class='muted'>The closure rule file could not be loaded.</p>";
+    if (!S.rule) return i18("<h3>School closure check</h3><p class='muted'>The closure rule file could not be loaded.</p>");
     var off = officialHTML(place, n);
     var p = L.predict(st, S.rule, n, stateName);
-    var html = "<h3>School closure check</h3>" + off.html;
+    var html = i18("<h3>School closure check</h3>") + off.html;
     if (off.closed) {
-      html += '<details class="inline-details ipu-ref"><summary>IPU check, for reference</summary><div>' +
-        (p.available ? '<dl class="facts"><dt>Reference station</dt><dd>' + esc(st.name) + ", " + esc(st.state) + "</dd>" +
-          "<dt>Current IPU</dt><dd>" + esc(p.latest) + " at " + esc(L.fmtTime(p.latestAt)) + "</dd>" +
-          "<dt>Reached " + S.rule.closure.threshold + " today</dt><dd>" + (p.reachedToday ? "Yes" : "No") + "</dd>" +
-          "<dt>Outdoor activities</dt><dd>" + (p.outdoorStop ? "Should stop (IPU above " + S.rule.outdoor.threshold + ")" : "No restriction at this reading") + "</dd></dl>" +
-          '<p class="small muted">The official closure applies whatever the IPU reading is.</p>'
+      html += i18('<details class="inline-details ipu-ref"><summary>IPU check, for reference</summary><div>') +
+        (p.available ? i18('<dl class="facts"><dt>Reference station</dt><dd>') + esc(st.name) + ", " + esc(st.state) + "</dd>" +
+          i18("<dt>Current IPU</dt><dd>") + esc(p.latest) + i18(" at ") + esc(L.fmtTime(p.latestAt)) + "</dd>" +
+          i18("<dt>Reached ") + S.rule.closure.threshold + i18(" today</dt><dd>") + (p.reachedToday ? i18("Yes") : i18("No")) + "</dd>" +
+          i18("<dt>Outdoor activities</dt><dd>") + (p.outdoorStop ? i18("Should stop (IPU above ") + S.rule.outdoor.threshold + ")" : i18("No restriction at this reading")) + "</dd></dl>" +
+          i18('<p class="small muted">The official closure applies whatever the IPU reading is.</p>')
           : '<p class="muted">' + esc(p.reason) + "</p>") + "</div></details>";
       return html + disclaimer(true);
     }
     if (!p.available) {
-      return html + '<div class="pred-status unavailable">Prediction unavailable</div><p class="pred-detail">' + esc(p.reason) + "</p>" + disclaimer(off.any);
+      return html + i18('<div class="pred-status unavailable">Prediction unavailable</div><p class="pred-detail">') + esc(p.reason) + "</p>" + disclaimer(off.any);
     }
     html += '<div class="pred-status ' + p.level + '">' + esc(p.status) + "</div>" +
       '<p class="pred-detail"><b>' + esc(p.headline) + ".</b> " + esc(p.detail) + "</p>" +
       '<dl class="facts">' +
-      "<dt>Reference station</dt><dd>" + esc(st.name) + ", " + esc(st.state) + "</dd>" +
-      "<dt>Reading time</dt><dd>" + esc(L.fmtDateTime(p.latestAt)) + "</dd>" +
-      "<dt>Highest today</dt><dd>" + (p.todayMax !== null ? esc(p.todayMax) + " at " + esc(L.fmtTime(p.todayMaxAt)) : "—") + "</dd>" +
-      "<dt>Reached " + S.rule.closure.threshold + " today</dt><dd>" + (p.reachedToday ? "Yes" : "No") + "</dd>" +
-      "<dt>Predicted for " + esc(L.fmtDayKey(p.tomorrowKey).replace(/ \d{4}$/, "")) + "</dt><dd>" + esc(p.status) + "</dd>" +
-      "<dt>Outdoor activities</dt><dd>" + (p.outdoorStop ? "Should stop now (IPU above " + S.rule.outdoor.threshold + ")" : "No restriction at this reading") + "</dd>" +
+      i18("<dt>Reference station</dt><dd>") + esc(st.name) + ", " + esc(st.state) + "</dd>" +
+      i18("<dt>Reading time</dt><dd>") + esc(L.fmtDateTime(p.latestAt)) + "</dd>" +
+      i18("<dt>Highest today</dt><dd>") + (p.todayMax !== null ? esc(p.todayMax) + i18(" at ") + esc(L.fmtTime(p.todayMaxAt)) : "—") + "</dd>" +
+      i18("<dt>Reached ") + S.rule.closure.threshold + i18(" today</dt><dd>") + (p.reachedToday ? i18("Yes") : i18("No")) + "</dd>" +
+      i18("<dt>Predicted for ") + esc(L.fmtDayKey(p.tomorrowKey).replace(/ \d{4}$/, "")) + "</dt><dd>" + esc(p.status) + "</dd>" +
+      i18("<dt>Outdoor activities</dt><dd>") + (p.outdoorStop ? i18("Should stop now (IPU above ") + S.rule.outdoor.threshold + ")" : i18("No restriction at this reading")) + "</dd>" +
       "</dl>";
     if (m && m.all && !p.reachedToday) {
       m.all.filter(function (x) {
@@ -1873,7 +1887,7 @@
         var q = L.predict(x.station, S.rule, n, stateName);
         return q.available && q.reachedToday;
       }).forEach(function (x) {
-        html += '<p class="note">' + esc(x.station.name) + " (" + Math.round(x.km) + " km away) reached the closure level today. Schools in its area may close, which may include this location.</p>";
+        html += '<p class="note">' + esc(x.station.name) + " (" + Math.round(x.km) + i18(" km away) reached the closure level today. Schools in its area may close, which may include this location.</p>");
       });
     }
     return html + disclaimer(off.any);
@@ -1883,57 +1897,57 @@
     var sum = L.stateSummary(sel.state, stations(), S.rule, n);
     $("sel-title").textContent = sel.state;
     if (!sum.stations.length) {
-      $("loc-info").innerHTML = '<p class="muted">No stations found for this state.</p>';
+      $("loc-info").innerHTML = i18('<p class="muted">No stations found for this state.</p>');
       $("prediction").innerHTML = ""; $("trend").innerHTML = ""; return;
     }
-    var html = '<p class="sel-sub">' + sum.stations.length + " monitoring station" + (sum.stations.length > 1 ? "s" : "") + ", " + sum.current.length + " with a current reading</p>";
+    var html = '<p class="sel-sub">' + sum.stations.length + i18(" monitoring station") + (sum.stations.length > 1 ? i18("s") : "") + ", " + sum.current.length + i18(" with a current reading</p>");
     if (sum.highest) {
       html += '<div class="reading" style="--c:' + cat(sum.highest.api).color + '"><span class="big">' + esc(sum.highest.api) + '</span><span class="meta">' + badge(sum.highest.api) +
-        '<span class="where">Highest now, at ' + esc(sum.highest.name) + "</span></span></div>" +
-        (sum.lowest && sum.lowest !== sum.highest ? '<p class="small muted">Lowest now: ' + esc(sum.lowest.api) + " at " + esc(sum.lowest.name) + ".</p>" : "");
+        i18('<span class="where">Highest now, at ') + esc(sum.highest.name) + "</span></span></div>" +
+        (sum.lowest && sum.lowest !== sum.highest ? i18('<p class="small muted">Lowest now: ') + esc(sum.lowest.api) + i18(" at ") + esc(sum.lowest.name) + ".</p>" : "");
     }
-    html += '<p class="ref-note">Air quality differs across a state, so each station is listed separately. Search a town or school to use its nearest station.</p>';
+    html += i18('<p class="ref-note">Air quality differs across a state, so each station is listed separately. Search a town or school to use its nearest station.</p>');
     $("loc-info").innerHTML = html;
 
     var noSchool = sum.tomorrowNoSchool, day = L.fmtDayKey(sum.tomorrowKey);
-    var noTxt = noSchool ? (noSchool.kind === "weekend" ? "No school (weekend)" : "No school (holiday)") : null;
+    var noTxt = noSchool ? (noSchool.kind === "weekend" ? i18("No school (weekend)") : i18("No school (holiday)")) : null;
     var off = officialHTML({ state: sel.state }, n);
-    var p = "<h3>School closure check</h3>" + off.html;
+    var p = i18("<h3>School closure check</h3>") + off.html;
     // closures for parts of this state (districts or listed schools)
     if (S.ann) {
       L.activeClosures(S.ann, n).filter(function (c) {
         var a = c.area || {};
         return !(a.states && a.states.some(function (x) { return L.sameState(x, sel.state); })) && a.state && L.sameState(a.state, sel.state);
       }).forEach(function (c) {
-        p += '<p class="off-note"><span class="off-chip">Official</span> Schools in ' + esc(L.areaLabel(c)) + " are closed " + esc(rangeText(c.from, c.to)) + ".</p>" + sourceLine(c);
+        p += i18('<p class="off-note"><span class="off-chip">Official</span> Schools in ') + esc(L.areaLabel(c)) + i18(" are closed ") + esc(rangeText(c.from, c.to)) + ".</p>" + sourceLine(c);
       });
     }
     if (off.closed) {
-      p += '<details class="inline-details ipu-ref"><summary>IPU check, for reference</summary><div><p class="small muted">' +
-        (sum.reached.length ? sum.reached.length + " station" + (sum.reached.length > 1 ? "s" : "") + " reached " + S.rule.closure.threshold + " today." : "No station has reached " + S.rule.closure.threshold + " today.") +
-        " The official closure applies whatever the IPU reading is.</p></div></details>";
+      p += i18('<details class="inline-details ipu-ref"><summary>IPU check, for reference</summary><div><p class="small muted">') +
+        (sum.reached.length ? sum.reached.length + i18(" station") + (sum.reached.length > 1 ? i18("s") : "") + i18(" reached ") + S.rule.closure.threshold + i18(" today.") : i18("No station has reached ") + S.rule.closure.threshold + i18(" today.")) +
+        i18(" The official closure applies whatever the IPU reading is.</p></div></details>");
     } else if (!sum.current.length) {
-      p += '<div class="pred-status unavailable">Prediction unavailable</div><p class="pred-detail">No station in this state has a current reading.</p>';
+      p += i18('<div class="pred-status unavailable">Prediction unavailable</div><p class="pred-detail">No station in this state has a current reading.</p>');
     } else if (sum.reached.length) {
-      p += '<div class="pred-status may_close">' + esc(noTxt || "Schools in some areas may be closed") + "</div>" +
-        '<p class="pred-detail"><b>The closure level of ' + S.rule.closure.threshold + " was reached today at " + sum.reached.length + " station" + (sum.reached.length > 1 ? "s" : "") + ".</b> " +
-        (noSchool ? "Under the current rule, schools in the affected areas close immediately at this level. Tomorrow (" + esc(day) + ") is not a school day in " + esc(sel.state) + "."
-                  : "Schools in the affected areas may be closed tomorrow (" + esc(day) + ").") +
-        " Closure applies to affected areas, not necessarily the whole state.</p><ul class='pred-detail'>" +
-        sum.reached.map(function (r) { return "<li>" + esc(r.station.name) + ": highest " + esc(r.p.todayMax) + " at " + esc(L.fmtTime(r.p.todayMaxAt)) + ", latest " + esc(r.p.latest) + "</li>"; }).join("") + "</ul>";
+      p += '<div class="pred-status may_close">' + esc(noTxt || i18("Schools in some areas may be closed")) + "</div>" +
+        i18('<p class="pred-detail"><b>The closure level of ') + S.rule.closure.threshold + i18(" was reached today at ") + sum.reached.length + i18(" station") + (sum.reached.length > 1 ? i18("s") : "") + ".</b> " +
+        (noSchool ? i18("Under the current rule, schools in the affected areas close immediately at this level. Tomorrow (") + esc(day) + i18(") is not a school day in ") + esc(sel.state) + "."
+                  : i18("Schools in the affected areas may be closed tomorrow (") + esc(day) + ").") +
+        i18(" Closure applies to affected areas, not necessarily the whole state.</p><ul class='pred-detail'>") +
+        sum.reached.map(function (r) { return "<li>" + esc(r.station.name) + i18(": highest ") + esc(r.p.todayMax) + i18(" at ") + esc(L.fmtTime(r.p.todayMaxAt)) + i18(", latest ") + esc(r.p.latest) + "</li>"; }).join("") + "</ul>";
     } else {
-      p += '<div class="pred-status ' + (noSchool ? "no_school" : "not_reached") + '">' + esc(noTxt || "Not predicted to close") + "</div>" +
-        '<p class="pred-detail"><b>Closure threshold not reached.</b> No station in ' + esc(sel.state) + " has reached " + S.rule.closure.threshold + " today at the latest readings." +
-        (noSchool ? " Tomorrow (" + esc(day) + ") is not a school day in " + esc(sel.state) + "."
-                  : " Based on readings so far, no haze closure is predicted for " + esc(day) + ". This can change if readings rise later today.") + "</p>";
+      p += '<div class="pred-status ' + (noSchool ? "no_school" : "not_reached") + '">' + esc(noTxt || i18("Not predicted to close")) + "</div>" +
+        i18('<p class="pred-detail"><b>Closure threshold not reached.</b> No station in ') + esc(sel.state) + i18(" has reached ") + S.rule.closure.threshold + i18(" today at the latest readings.") +
+        (noSchool ? i18(" Tomorrow (") + esc(day) + i18(") is not a school day in ") + esc(sel.state) + "."
+                  : i18(" Based on readings so far, no haze closure is predicted for ") + esc(day) + i18(". This can change if readings rise later today.")) + "</p>";
     }
     if (sum.current.length && !off.closed) {
       var outdoor = sum.current.filter(function (s) { return L.meets(s.api, S.rule.outdoor); }).length;
-      p += '<dl class="facts"><dt>Reached ' + S.rule.closure.threshold + " today</dt><dd>" + (sum.reached.length ? "Yes, at " + sum.reached.length + " station" + (sum.reached.length > 1 ? "s" : "") : "No") + "</dd>" +
-        "<dt>Above " + S.rule.outdoor.threshold + " now</dt><dd>" + outdoor + " of " + sum.current.length + " stations (outdoor activities stop in those areas)</dd></dl>";
+      p += i18('<dl class="facts"><dt>Reached ') + S.rule.closure.threshold + i18(" today</dt><dd>") + (sum.reached.length ? i18("Yes, at ") + sum.reached.length + i18(" station") + (sum.reached.length > 1 ? i18("s") : "") : i18("No")) + "</dd>" +
+        i18("<dt>Above ") + S.rule.outdoor.threshold + i18(" now</dt><dd>") + outdoor + i18(" of ") + sum.current.length + i18(" stations (outdoor activities stop in those areas)</dd></dl>");
     }
     p += disclaimer(off.any);
-    p += '<div class="near"><h3>Stations in ' + esc(sel.state) + '</h3><div class="table-wrap"><table class="mini"><thead><tr><th>Station</th><th class="num">IPU</th><th class="hide-sm">Category</th><th>Time</th></tr></thead><tbody>' +
+    p += i18('<div class="near"><h3>Stations in ') + esc(sel.state) + i18('</h3><div class="table-wrap"><table class="mini"><thead><tr><th>Station</th><th class="num">IPU</th><th class="hide-sm">Category</th><th>Time</th></tr></thead><tbody>') +
       sum.stations.slice().sort(function (a, b) {
         return (L.stationCurrent(b, n) ? b.api : -1) - (L.stationCurrent(a, n) ? a.api : -1);
       }).map(function (s) {
@@ -1942,10 +1956,10 @@
           '<td class="num api">' + (cur ? esc(s.api) : "—") + '</td><td class="hide-sm">' + badge(cur ? s.api : null) + "</td><td>" + esc(readingTime(s.observed, n)) + "</td></tr>";
       }).join("") + "</tbody></table></div></div>";
     $("prediction").innerHTML = p;
-    if (sum.highest) renderTrend($("trend"), sum.highest, "Last 24 hours at " + sum.highest.name + ", the highest station in " + sel.state);
+    if (sum.highest) renderTrend($("trend"), sum.highest, i18("Last 24 hours at ") + sum.highest.name + i18(", the highest station in ") + sel.state);
     else $("trend").innerHTML = "";
     renderForecast($("forecast"), sum.highest);
-    S.view = makeView(sel, sel.state, sum.current.length + " stations with a current reading", sum.highest, 0, { state: sel.state }, sel.state, n, false, true);
+    S.view = makeView(sel, sel.state, sum.current.length + i18(" stations with a current reading"), sum.highest, 0, { state: sel.state }, sel.state, n, false, true);
     if (S.lobbyOn) renderLobby();
     renderAirPath();
     renderSmoke();
@@ -1966,52 +1980,52 @@
     var st = side.status, tk = L.addDaysKey(L.mytDateKey(now()), 1);
     if (st.kind === "official") {
       var c = st.closure;
-      return '<span class="off-chip">Official</span><b>Schools closed</b><span class="bx-note">' + esc(c.until_further_notice ? "until further notice" : rangeText(c.from, c.to)) + "</span>";
+      return i18('<span class="off-chip">Official</span><b>Schools closed</b><span class="bx-note">') + esc(c.until_further_notice ? i18("until further notice") : rangeText(c.from, c.to)) + "</span>";
     }
-    if (st.kind === "may_close") return '<span class="pred-chip">Prediction</span><b>May close</b><span class="bx-note">its station reached the closure level today</span>';
-    if (st.kind === "not_reached" && day === tk) return "<b>Open</b><span class=\"bx-note\">no closure announced; closure level not reached</span>";
-    return "<b>Open</b><span class=\"bx-note\">no closure announced</span>";
+    if (st.kind === "may_close") return i18('<span class="pred-chip">Prediction</span><b>May close</b><span class="bx-note">its station reached the closure level today</span>');
+    if (st.kind === "not_reached" && day === tk) return i18("<b>Open</b><span class=\"bx-note\">no closure announced; closure level not reached</span>");
+    return i18("<b>Open</b><span class=\"bx-note\">no closure announced</span>");
   }
 
-  function stnTxt(r) { return r ? esc(r.station.name) + " (IPU <b>" + esc(r.station.api) + "</b>)" : "no station with a current reading"; }
+  function stnTxt(r) { return r ? esc(r.station.name) + i18(" (IPU <b>") + esc(r.station.api) + "</b>)" : i18("no station with a current reading"); }
 
   function bxItem(x, i) {
     var c = x.closed.ref, o = x.open.ref, why;
     if (c && o && c.station.id === o.station.id) {
-      why = "Both districts' nearest DOE station is " + stnTxt(c) + ", yet the status differs.";
+      why = i18("Both districts' nearest DOE station is ") + stnTxt(c) + i18(", yet the status differs.");
     } else if (x.reversed) {
-      why = "The open side's nearest station reads higher: " + stnTxt(o) + ", against " + stnTxt(c) + " for the closed side.";
+      why = i18("The open side's nearest station reads higher: ") + stnTxt(o) + i18(", against ") + stnTxt(c) + i18(" for the closed side.");
     } else {
-      why = "Nearest stations: " + stnTxt(c) + " for " + esc(x.closed.district) + ", " + stnTxt(o) + " for " + esc(x.open.district) + ".";
+      why = i18("Nearest stations: ") + stnTxt(c) + i18(" for ") + esc(x.closed.district) + ", " + stnTxt(o) + i18(" for ") + esc(x.open.district) + ".";
     }
     return '<article class="bx ' + x.type + (x.reversed ? " reversed" : "") + '">' +
-      '<p class="bx-day">' + (x.type === "official" ? "Official status" : "IPU rule") + " for " + esc(dayShort(x.day)) +
-      (x.crossState ? " · across a state border" : " · within " + esc(x.closed.state)) + "</p>" +
+      '<p class="bx-day">' + (x.type === "official" ? i18("Official status") : i18("IPU rule")) + i18(" for ") + esc(dayShort(x.day)) +
+      (x.crossState ? i18(" · across a state border") : i18(" · within ") + esc(x.closed.state)) + "</p>" +
       '<div class="bx-sides"><div class="bx-side shut"><span class="bx-name">' + esc(x.closed.district) + '</span><span class="bx-state">' + esc(x.closed.state) + "</span>" +
       '<span class="bx-st">' + bxSide(x.closed, x.day) + "</span></div>" +
-      '<div class="bx-mid" aria-hidden="true"><span class="bx-rule"></span><span class="bx-km">' + Math.round(x.km) + " km<br>border</span></div>" +
+      '<div class="bx-mid" aria-hidden="true"><span class="bx-rule"></span><span class="bx-km">' + Math.round(x.km) + i18(" km<br>border</span></div>") +
       '<div class="bx-side open"><span class="bx-name">' + esc(x.open.district) + '</span><span class="bx-state">' + esc(x.open.state) + "</span>" +
       '<span class="bx-st">' + bxSide(x.open, x.day) + "</span></div></div>" +
       '<p class="bx-why">' + why + "</p>" +
-      '<button type="button" class="text-btn bx-map" data-i="' + i + '">See on map</button></article>';
+      '<button type="button" class="text-btn bx-map" data-i="' + i + i18('">See on map</button></article>');
   }
 
   function renderBorders() {
     var box = $("borders-body");
     if (!box) return;
-    if (!S.borders || !S.rule || !S.data) { box.innerHTML = '<p class="muted">The district borders are not available right now.</p>'; return; }
+    if (!S.borders || !S.rule || !S.data) { box.innerHTML = i18('<p class="muted">The district borders are not available right now.</p>'); return; }
     var list = L.borderSplits(S.borders, stations(), S.ann, S.rule, now());
     S.splits = list;
-    var html = '<p class="lead-p">Haze does not stop at a district or state line, but school decisions do. Here, neighbouring districts have a different school status for the same day.</p>';
+    var html = i18('<p class="lead-p">Haze does not stop at a district or state line, but school decisions do. Here, neighbouring districts have a different school status for the same day.</p>');
     if (!list.length) {
-      html += '<p class="off-none">Right now no neighbouring districts have a different school status.</p>';
+      html += i18('<p class="off-none">Right now no neighbouring districts have a different school status.</p>');
     } else {
       var shown = S.bordersAll ? list : list.slice(0, 4);
       html += '<div class="bx-list">' + shown.map(bxItem).join("") + "</div>";
-      if (list.length > 4) html += '<button type="button" class="text-btn bx-more" id="bx-more">' + (S.bordersAll ? "Show fewer" : "Show all " + list.length) + "</button>";
+      if (list.length > 4) html += '<button type="button" class="text-btn bx-more" id="bx-more">' + (S.bordersAll ? i18("Show fewer") : i18("Show all ") + list.length) + "</button>";
     }
-    html += '<p class="small muted">Official status: Bernama reports only. "May close" is a prediction from the IPU rule, not an announcement. ' +
-      "Neighbours come from the data.gov.my district boundaries; each district's station is the nearest DOE station with a current reading to a point well inside the district.</p>";
+    html += i18('<p class="small muted">Official status: Bernama reports only. "May close" is a prediction from the IPU rule, not an announcement. ') +
+      i18("Neighbours come from the data.gov.my district boundaries; each district's station is the nearest DOE station with a current reading to a point well inside the district.</p>");
     box.innerHTML = html;
     Array.prototype.forEach.call(box.querySelectorAll(".bx-map"), function (b) {
       b.addEventListener("click", function () { showSplit(S.splits[+b.getAttribute("data-i")]); });
@@ -2061,23 +2075,23 @@
   function baseRule() { return { key: "ptjk", threshold: S.rule.closure.threshold, comparison: S.rule.closure.comparison, days: 1 }; }
 
   function ruleWords(r) {
-    if (r.key === "interim") return "a reading over 180, or over 150 on 3 days in a row";
-    var cmp = r.comparison === ">" ? "over " + r.threshold : r.threshold + " or more";
-    return "a reading of " + cmp + (r.days > 1 ? " on " + r.days + " days in a row" : "");
+    if (r.key === "interim") return i18("a reading over 180, or over 150 on 3 days in a row");
+    var cmp = r.comparison === ">" ? i18("over ") + r.threshold : r.threshold + i18(" or more");
+    return i18("a reading of ") + cmp + (r.days > 1 ? i18(" on ") + r.days + i18(" days in a row") : "");
   }
 
   function buildSim() {
     var box = $("sim-body");
     if (!box || SIM.built) return;
     SIM.built = true;
-    var opts = [["ptjk", "Current rule", "200 or more"], ["interim", "Earlier rule", "8 to 14 Oct"], ["t150", "Stricter", "150 or more"], ["custom", "Your own", "set a level"]];
-    box.innerHTML = '<p class="lead-p">Apply a different closure rule to the same official DOE readings and see where it would have been met, today and over the last 7 days.</p>' +
+    var opts = [["ptjk", i18("Current rule"), i18("200 or more")], ["interim", i18("Earlier rule"), i18("8 to 14 Oct")], ["t150", i18("Stricter"), i18("150 or more")], ["custom", i18("Your own"), i18("set a level")]];
+    box.innerHTML = i18('<p class="lead-p">Apply a different closure rule to the same official DOE readings and see where it would have been met, today and over the last 7 days.</p>') +
       '<div class="sim-opts" role="group" aria-label="Rule to try">' + opts.map(function (o) {
         return '<button type="button" class="sim-opt" data-k="' + o[0] + '" aria-pressed="false"><b>' + o[1] + "</b><span>" + o[2] + "</span></button>";
       }).join("") + "</div>" +
-      '<div class="sim-custom" id="sim-custom" hidden><label>Closure level <output id="sim-t-out"></output>' +
+      i18('<div class="sim-custom" id="sim-custom" hidden><label>Closure level <output id="sim-t-out"></output>') +
       '<input type="range" id="sim-t" min="101" max="300" step="1"></label>' +
-      '<label>Days in a row <select id="sim-d"><option value="1">1 (any reading that day)</option><option value="2">2</option><option value="3">3</option></select></label></div>' +
+      i18('<label>Days in a row <select id="sim-d"><option value="1">1 (any reading that day)</option><option value="2">2</option><option value="3">3</option></select></label></div>') +
       '<div id="sim-out" aria-live="polite"></div>';
     Array.prototype.forEach.call(box.querySelectorAll(".sim-opt"), function (b) {
       b.addEventListener("click", function () { SIM.key = b.getAttribute("data-k"); renderSim(); });
@@ -2097,25 +2111,25 @@
     var r = simRule(), b = baseRule(), res = L.simulateRule(stations(), S.daily, r, b, now(), 7);
     S.simRes = res;
     var t = res.days[res.days.length - 1], isBase = r.key === "ptjk";
-    var plural = function (n, w) { return n + " " + w + (n === 1 ? "" : "s"); };
-    var html = '<div class="fc-head"><h3>' + (isBase ? "The current rule" : "If the rule were " + esc(ruleWords(r))) + '</h3><span class="fc-tag">Simulation, not official</span></div>';
-    html += '<p class="sim-head">Today: <b>' + plural(t.sim, "station") + "</b>" + (t.sim ? " in " + plural(t.simStates.length, "state") : "") + " " + (t.sim === 1 ? "meets" : "meet") + " " + (isBase ? "the current rule (" + esc(ruleWords(b)) + ")" : "this rule") +
-      (isBase ? "." : ". Under the current rule: <b>" + plural(t.base, "station") + "</b>" + (t.base ? " in " + plural(t.baseStates.length, "state") : "") + ".") + "</p>";
+    var plural = function (n, w) { return n + " " + w + (n === 1 ? "" : i18("s")); };
+    var html = '<div class="fc-head"><h3>' + (isBase ? i18("The current rule") : i18("If the rule were ") + esc(ruleWords(r))) + i18('</h3><span class="fc-tag">Simulation, not official</span></div>');
+    html += i18('<p class="sim-head">Today: <b>') + plural(t.sim, i18("station")) + "</b>" + (t.sim ? i18(" in ") + plural(t.simStates.length, i18("state")) : "") + " " + (t.sim === 1 ? i18("meets") : i18("meet")) + " " + (isBase ? i18("the current rule (") + esc(ruleWords(b)) + ")" : i18("this rule")) +
+      (isBase ? "." : i18(". Under the current rule: <b>") + plural(t.base, i18("station")) + "</b>" + (t.base ? i18(" in ") + plural(t.baseStates.length, i18("state")) : "") + ".") + "</p>";
     if (t.sim) html += '<p class="sim-states">' + t.simStates.map(esc).join(" · ") + "</p>";
     var chip = function (row) { return '<button type="button" class="sim-chip" data-id="' + esc(row.station.id) + '">' + esc(row.station.name) + " <b>" + esc(row.high) + "</b></button>"; };
     if (!isBase && res.added.length) {
-      html += '<p class="sim-lbl">Met only under this rule (' + res.added.length + '), highest reading today:</p><div class="sim-chips">' + res.added.slice(0, 12).map(chip).join("") +
-        (res.added.length > 12 ? '<span class="muted small">and ' + (res.added.length - 12) + " more</span>" : "") + "</div>";
+      html += i18('<p class="sim-lbl">Met only under this rule (') + res.added.length + i18('), highest reading today:</p><div class="sim-chips">') + res.added.slice(0, 12).map(chip).join("") +
+        (res.added.length > 12 ? i18('<span class="muted small">and ') + (res.added.length - 12) + i18(" more</span>") : "") + "</div>";
     }
     if (!isBase && res.removed.length) {
-      html += '<p class="sim-lbl">Met under the current rule but not this one (' + res.removed.length + "):</p><div class=\"sim-chips\">" + res.removed.slice(0, 12).map(chip).join("") + "</div>";
+      html += i18('<p class="sim-lbl">Met under the current rule but not this one (') + res.removed.length + "):</p><div class=\"sim-chips\">" + res.removed.slice(0, 12).map(chip).join("") + "</div>";
     }
     if (isBase && res.both.length) html += '<div class="sim-chips">' + res.both.slice(0, 12).map(chip).join("") + "</div>";
     html += '<div class="sim-chart" id="sim-chart"></div>';
     var thin = res.days.filter(function (d) { return d.unknown > 0 && d.key !== res.todayKey; }).length;
-    if (thin) html += '<p class="small muted">Days marked with a dot had too few hourly readings at some stations to tell; those stations are not counted. Days without data fill in from DOE\'s hourly tables over the next hourly updates.</p>';
-    html += '<button type="button" class="text-btn sim-map" id="sim-map" aria-pressed="' + SIM.onMap + '">' + (SIM.onMap ? "Hide from the map" : "Show today's stations on the map") + "</button>";
-    html += '<p class="disclaimer"><b>A "what if", not a prediction.</b> This applies a different rule to the same official DOE readings. It counts monitoring stations, not schools: closures are decided for whole districts or states, and only by KPM, state governments, JPN and PPD.</p>';
+    if (thin) html += i18('<p class="small muted">Days marked with a dot had too few hourly readings at some stations to tell; those stations are not counted. Days without data fill in from DOE\'s hourly tables over the next hourly updates.</p>');
+    html += '<button type="button" class="text-btn sim-map" id="sim-map" aria-pressed="' + SIM.onMap + '">' + (SIM.onMap ? i18("Hide from the map") : i18("Show today's stations on the map")) + "</button>";
+    html += i18('<p class="disclaimer"><b>A "what if", not a prediction.</b> This applies a different rule to the same official DOE readings. It counts monitoring stations, not schools: closures are decided for whole districts or states, and only by KPM, state governments, JPN and PPD.</p>');
     $("sim-out").innerHTML = html;
     drawSimChart($("sim-chart"), res, r, b);
     Array.prototype.forEach.call($("sim-out").querySelectorAll(".sim-chip"), function (c) {
@@ -2144,7 +2158,7 @@
     var sy = function (v) { return H - padB - v / max * (H - padT - padB); };
     var same = r.key === "ptjk";
     var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img",
-      "aria-label": "Stations meeting the rule each day, last 7 days: " + days.map(function (d) { return L.weekdayOfKey(d.key) + " " + d.sim + (same ? "" : " (current rule " + d.base + ")"); }).join(", ") });
+      "aria-label": i18("Stations meeting the rule each day, last 7 days: ") + days.map(function (d) { return L.dayName(d.key) + " " + d.sim + (same ? "" : i18(" (current rule ") + d.base + ")"); }).join(", ") });
     for (var g = 0; g <= max; g += max / 4) {
       svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
       svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
@@ -2152,10 +2166,10 @@
     var total = res.today.length;
     days.forEach(function (d, i) {
       var cx = padL + gw * (i + 0.5), isToday = d.key === res.todayKey;
-      var lbl0 = L.weekdayOfKey(d.key) + " " + parseInt(d.key.slice(8), 10);
+      var lbl0 = L.dayName(d.key) + " " + parseInt(d.key.slice(8), 10);
       if (!isToday && total && d.unknown >= total / 2) {
         // most stations have no saved readings for this day: show no bars rather than zeros
-        svg.appendChild(svgEl("text", { x: cx, y: sy(0) - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, "no data"));
+        svg.appendChild(svgEl("text", { x: cx, y: sy(0) - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, gw < 60 ? "–" : i18("no data")));
         svg.appendChild(svgEl("text", { x: cx, y: H - 16, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, lbl0));
         return;
       }
@@ -2165,15 +2179,15 @@
         svg.appendChild(svgEl("rect", { x: x, y: sy(0) - h, width: bw, height: h, rx: 3, fill: bb[1], "class": bb[1] === "var(--fc)" ? "series sim-bar" : "" }));
         svg.appendChild(svgEl("text", { x: x + bw / 2, y: sy(0) - h - 4, "font-size": 11, "font-weight": 700, fill: T().ink, "text-anchor": "middle" }, String(bb[0])));
       });
-      var lbl = L.weekdayOfKey(d.key) + " " + parseInt(d.key.slice(8), 10);
-      svg.appendChild(svgEl("text", { x: cx, y: H - 16, "font-size": 11, fill: isToday ? T().ink : T().axis, "font-weight": isToday ? 700 : 400, "text-anchor": "middle" }, isToday ? "Today" : lbl));
+      var lbl = L.dayName(d.key) + " " + parseInt(d.key.slice(8), 10);
+      svg.appendChild(svgEl("text", { x: cx, y: H - 16, "font-size": 11, fill: isToday ? T().ink : T().axis, "font-weight": isToday ? 700 : 400, "text-anchor": "middle" }, isToday ? i18("Today") : lbl));
       if (d.unknown > 0 && !isToday) svg.appendChild(svgEl("circle", { cx: cx, cy: H - 5, r: 2.4, fill: T().axis }));
     });
     box.innerHTML = "";
     var cap = document.createElement("p");
     cap.className = "sim-legend-row small";
-    cap.innerHTML = '<span><i style="background:var(--fc)"></i>' + (same ? "Current rule" : "This rule") + "</span>" + (same ? "" : '<span><i style="background:var(--marker-off)"></i>Current rule (' + esc(ruleWords(b)) + ")</span>") +
-      '<span class="muted">Stations meeting the rule each day</span>';
+    cap.innerHTML = '<span><i style="background:var(--fc)"></i>' + (same ? i18("Current rule") : i18("This rule")) + "</span>" + (same ? "" : i18('<span><i style="background:var(--marker-off)"></i>Current rule (') + esc(ruleWords(b)) + ")</span>") +
+      i18('<span class="muted">Stations meeting the rule each day</span>');
     box.appendChild(cap);
     var wrap = document.createElement("div"); wrap.className = "chart"; wrap.appendChild(svg); box.appendChild(wrap);
   }
@@ -2189,24 +2203,24 @@
     if (o && o.tomorrow) {
       var c = o.tomorrow;
       v.statusKind = "official";
-      v.status = "Schools officially closed " + (c.until_further_notice ? "until further notice" : (o.today ? "until " + dayShort(o.lastDay || c.to) : rangeText(c.from, o.lastDay || c.to)));
-      v.statusNote = "Announced by " + (c.announced_by.split(",")[0]) + ", reported by Bernama";
+      v.status = i18("Schools officially closed ") + (c.until_further_notice ? i18("until further notice") : (o.today ? i18("until ") + dayShort(o.lastDay || c.to) : rangeText(c.from, o.lastDay || c.to)));
+      v.statusNote = i18("Announced by ") + (loc(c, "announced_by").split(",")[0]) + i18(", reported by Bernama");
     } else if (o && o.today) {
       v.statusKind = "official";
-      v.status = "Official closure ends today";
-      v.statusNote = "Reported by Bernama";
+      v.status = i18("Official closure ends today");
+      v.statusNote = i18("Reported by Bernama");
     } else if (st && S.rule && !isState) {
       var p = L.predict(st, S.rule, n, stateName);
       if (p.available) {
         v.statusKind = p.level === "may_close" ? "may_close" : "predicted";
         v.status = p.status;
-        v.statusNote = "Prediction from the IPU rule, not an announcement";
+        v.statusNote = i18("Prediction from the IPU rule, not an announcement");
       }
     } else if (isState && S.rule) {
       var sum = L.stateSummary(stateName, stations(), S.rule, n);
       v.statusKind = sum.reached.length ? "may_close" : "predicted";
-      v.status = sum.reached.length ? "Closure level reached at " + sum.reached.length + " station" + (sum.reached.length > 1 ? "s" : "") : "Closure level not reached";
-      v.statusNote = "Prediction from the IPU rule, not an announcement";
+      v.status = sum.reached.length ? i18("Closure level reached at ") + sum.reached.length + i18(" station") + (sum.reached.length > 1 ? i18("s") : "") : i18("Closure level not reached");
+      v.statusNote = i18("Prediction from the IPU rule, not an announcement");
     }
     return v;
   }
@@ -2214,22 +2228,22 @@
   function shareText(v) {
     var lines = [v.title + (v.sub ? " (" + v.sub + ")" : "")];
     if (v.station) {
-      lines.push("IPU " + v.api + " (" + v.cat.label + ")" + (v.isStation ? "" : v.isState ? " at " + v.station.name + ", the highest station now" :
-        " at " + v.station.name + " station, " + (v.km < 1 ? "under 1 km" : Math.round(v.km) + " km") + " away") +
-        ". Official DOE reading for " + L.fmtDateTime(v.at) + ".");
+      lines.push(i18("IPU ") + v.api + " (" + v.cat.label + ")" + (v.isStation ? "" : v.isState ? i18(" at ") + v.station.name + i18(", the highest station now") :
+        i18(" at ") + v.station.name + i18(" station, ") + (v.km < 1 ? i18("under 1 km") : Math.round(v.km) + i18(" km")) + i18(" away")) +
+        i18(". Official DOE reading for ") + L.fmtDateTime(v.at) + ".");
     }
-    if (v.status) lines.push("Schools: " + v.status + (v.statusKind === "official" ? " (" + v.statusNote + ")" : " (prediction, not an official announcement)") + ".");
-    lines.push("Live: " + v.url);
+    if (v.status) lines.push(i18("Schools: ") + v.status + (v.statusKind === "official" ? " (" + v.statusNote + ")" : i18(" (prediction, not an official announcement)")) + ".");
+    lines.push(i18("Live: ") + v.url);
     return lines.join("\n");
   }
 
   function sharePanelHTML() {
     var canShare = !!navigator.share;
     return '<p class="share-preview"></p><div class="share-btns">' +
-      '<a class="share-wa" id="share-wa" target="_blank" rel="noopener">Send on WhatsApp</a>' +
-      '<button type="button" id="share-img">' + (canShare ? "Share as image" : "Download image") + "</button>" +
-      '<button type="button" id="share-copy">Copy text</button>' +
-      (canShare ? '<button type="button" id="share-native">More…</button>' : "") + "</div>" +
+      i18('<a class="share-wa" id="share-wa" target="_blank" rel="noopener">Send on WhatsApp</a>') +
+      '<button type="button" id="share-img">' + (canShare ? i18("Share as image") : i18("Download image")) + "</button>" +
+      i18('<button type="button" id="share-copy">Copy text</button>') +
+      (canShare ? i18('<button type="button" id="share-native">More…</button>') : "") + "</div>" +
       '<p class="small muted share-note" id="share-msg"></p>';
   }
 
@@ -2242,11 +2256,11 @@
     panel.querySelector(".share-preview").textContent = text;
     $("share-wa").href = "https://wa.me/?text=" + encodeURIComponent(text);
     $("share-copy").addEventListener("click", function () {
-      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { $("share-msg").textContent = "Copied."; })
-        .catch(function () { $("share-msg").textContent = "Copy is not available here; select the text above instead."; });
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { $("share-msg").textContent = i18("Copied."); })
+        .catch(function () { $("share-msg").textContent = i18("Copy is not available here; select the text above instead."); });
     });
     if ($("share-native")) $("share-native").addEventListener("click", function () {
-      navigator.share({ title: v.title + ": IPU " + (v.api || ""), text: text }).catch(function () { /* cancelled */ });
+      navigator.share({ title: v.title + i18(": IPU ") + (v.api || ""), text: text }).catch(function () { /* cancelled */ });
     });
     $("share-img").addEventListener("click", function () { shareImage(v); });
     panel.hidden = false;
@@ -2272,7 +2286,7 @@
     var disp = "'Bricolage Grotesque', 'Segoe UI', sans-serif", text = "'Instrument Sans', 'Segoe UI', sans-serif";
     var col = v.cat ? v.cat.color : (neon ? "#4b5a80" : "#9aa9ae"), band = 0;
     x.fillStyle = col; x.fillRect(0, 0, W, 14);
-    x.fillStyle = ink2; x.font = "600 34px " + text; x.fillText("IPU Malaysia", 72, 96);
+    x.fillStyle = ink2; x.font = "600 34px " + text; x.fillText(i18("IPU Malaysia"), 72, 96);
     x.fillStyle = ink; x.font = "800 64px " + disp;
     var ty = 180;
     wrapText(x, v.title, W - 144).slice(0, 2).forEach(function (l) { x.fillText(l, 72, ty); ty += 72; });
@@ -2286,9 +2300,9 @@
       wrapText(x, v.cat.label, W - (60 + nw + 86) - 60).slice(0, 2).forEach(function (l, i) { x.fillText(l, 60 + nw + 86, ty + 168 + i * 58); });
       ty += 300;
       x.fillStyle = ink2; x.font = "500 36px " + text;
-      var where = v.isStation ? "IPU at this DOE station." : v.isState ? "Highest now, at " + v.station.name + " station." : "IPU at " + v.station.name + " station, " + (v.km < 1 ? "under 1 km" : Math.round(v.km) + " km") + " away. Not measured at the place itself.";
+      var where = v.isStation ? i18("IPU at this DOE station.") : v.isState ? i18("Highest now, at ") + v.station.name + i18(" station.") : i18("IPU at ") + v.station.name + i18(" station, ") + (v.km < 1 ? i18("under 1 km") : Math.round(v.km) + i18(" km")) + i18(" away. Not measured at the place itself.");
       wrapText(x, where, W - 144).slice(0, 2).forEach(function (l) { x.fillText(l, 72, ty); ty += 46; });
-      x.fillText("Official DOE reading for " + L.fmtDateTime(v.at) + ".", 72, ty);
+      x.fillText(i18("Official DOE reading for ") + L.fmtDateTime(v.at) + ".", 72, ty);
       band = ty + 34;
       ty += 76;
     }
@@ -2305,7 +2319,7 @@
       x.beginPath(); x.roundRect ? x.roundRect(60, ty, W - 120, bh, 28) : x.rect(60, ty, W - 120, bh); x.fill(); x.stroke();
       if (off) {
         x.fillStyle = bd; x.beginPath(); x.roundRect ? x.roundRect(96, ty + 34, 190, 54, 27) : x.rect(96, ty + 34, 190, 54); x.fill();
-        x.fillStyle = neon ? "#1a0410" : "#ffffff"; x.font = "700 30px " + text; x.fillText("OFFICIAL", 128, ty + 72);
+        x.fillStyle = neon ? "#1a0410" : "#ffffff"; x.font = "700 30px " + text; x.fillText(i18("OFFICIAL"), 128, ty + 72);
       }
       var sy = ty + (off ? 120 : 50) + 44;
       x.fillStyle = ink; x.font = "700 50px " + disp;
@@ -2316,9 +2330,9 @@
       ty += bh + 50;
     }
     x.fillStyle = ink2; x.font = "500 30px " + text;
-    wrapText(x, "Readings: Department of Environment Malaysia (APIMS). Official closures: Bernama reports. Predictions are not closure announcements.", W - 144)
+    wrapText(x, i18("Readings: Department of Environment Malaysia (APIMS). Official closures: Bernama reports. Predictions are not closure announcements."), W - 144)
       .forEach(function (l) { x.fillText(l, 72, ty); ty += 42; });
-    x.fillStyle = ink2; x.font = "500 28px " + text; x.fillText("Live, updated every hour:", 72, H - 124);
+    x.fillStyle = ink2; x.font = "500 28px " + text; x.fillText(i18("Live, updated every hour:"), 72, H - 124);
     x.fillStyle = ink; x.font = "700 34px " + text; x.fillText(location.host + location.pathname.replace(/\/$/, ""), 72, H - 80);
     // background last, behind everything drawn above
     x.globalCompositeOperation = "destination-over";
@@ -2332,7 +2346,7 @@
     var go = function () {
       var c = drawCard(v), name = "ipu-" + String(v.title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".png";
       c.toBlob(function (blob) {
-        if (!blob) { $("share-msg").textContent = "The image could not be made on this device."; return; }
+        if (!blob) { $("share-msg").textContent = i18("The image could not be made on this device."); return; }
         var file = typeof File === "function" ? new File([blob], name, { type: "image/png" }) : null;
         if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
           navigator.share({ files: [file], title: v.title, text: shareText(v) }).catch(function () { /* cancelled */ });
@@ -2341,7 +2355,7 @@
           a.href = URL.createObjectURL(blob); a.download = name;
           document.body.appendChild(a); a.click(); a.remove();
           setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
-          $("share-msg").textContent = "Image saved. You can attach it in WhatsApp.";
+          $("share-msg").textContent = i18("Image saved. You can attach it in WhatsApp.");
         }
       }, "image/png");
     };
@@ -2386,12 +2400,12 @@
     var stale = S.data && L.freshness(S.data, n).stale;
     box.innerHTML = '<p class="lb-title">' + esc(v.title) + "</p>" +
       (v.station ? '<div class="lb-reading"><span class="lb-num">' + esc(v.api) + '</span><span class="lb-meta"><span class="lb-cat"><i></i>' + esc(v.cat.label) + "</span>" +
-        '<span class="lb-where">' + esc(v.isStation ? "IPU at this DOE station" : v.isState ? "Highest now, at " + v.station.name : "IPU at " + v.station.name + " station, " + (v.km < 1 ? "under 1 km" : Math.round(v.km) + " km") + " away") +
-        "</span></span></div>" : '<p class="lb-none">No current official reading</p>') +
-      (v.status ? '<div class="lb-status ' + esc(v.statusKind) + '">' + (v.statusKind === "official" ? '<span class="off-chip">Official</span>' : "") +
+        '<span class="lb-where">' + esc(v.isStation ? i18("IPU at this DOE station") : v.isState ? i18("Highest now, at ") + v.station.name : i18("IPU at ") + v.station.name + i18(" station, ") + (v.km < 1 ? i18("under 1 km") : Math.round(v.km) + i18(" km")) + i18(" away")) +
+        "</span></span></div>" : i18('<p class="lb-none">No current official reading</p>')) +
+      (v.status ? '<div class="lb-status ' + esc(v.statusKind) + '">' + (v.statusKind === "official" ? i18('<span class="off-chip">Official</span>') : "") +
         "<b>" + esc(v.status) + "</b><span>" + esc(v.statusNote) + "</span></div>" : "") +
-      '<p class="lb-foot">' + (v.at ? "Official DOE reading for " + esc(L.fmtDateTime(v.at)) + ". " : "") +
-      (stale ? "<b>Data may be outdated.</b> " : "") + "Refreshes by itself. " + esc(location.host + location.pathname) + "</p>";
+      '<p class="lb-foot">' + (v.at ? i18("Official DOE reading for ") + esc(L.fmtDateTime(v.at)) + ". " : "") +
+      (stale ? i18("<b>Data may be outdated.</b> ") : "") + i18("Refreshes by itself. ") + esc(location.host + location.pathname) + "</p>";
     $("lobby-clock").textContent = L.fmtTime(n);
   }
 
@@ -2415,13 +2429,13 @@
       .map(function (p) { return { t: L.parseTime(p[0]), y: p[1] }; })
       .filter(function (p) { return p.t && (n - p.t) <= 30 * 3600000; });
     if (pts.length < 2) {
-      var p0 = document.createElement("p"); p0.className = "muted"; p0.textContent = "Not enough hourly readings yet to draw a trend for this station.";
+      var p0 = document.createElement("p"); p0.className = "muted"; p0.textContent = i18("Not enough hourly readings yet to draw a trend for this station.");
       box.appendChild(p0); return;
     }
     var lastPt = pts[pts.length - 1];
     if ((n - lastPt.t) / 3600000 > L.STALE_HOURS) {
       var warn = document.createElement("p"); warn.className = "note";
-      warn.textContent = "Outdated: the newest reading in this chart is from " + L.fmtDateTime(lastPt.t) + " (" + L.ago(lastPt.t, n) + ").";
+      warn.textContent = i18("Outdated: the newest reading in this chart is from ") + L.fmtDateTime(lastPt.t) + " (" + L.ago(lastPt.t, n) + ").";
       box.appendChild(warn);
     }
     var chart = document.createElement("div"); chart.className = "chart"; box.appendChild(chart);
@@ -2430,7 +2444,7 @@
     var ymax = niceMax(Math.max.apply(null, pts.map(function (p) { return p.y; })), 220);
     var sx = function (t) { return padL + ((t - t0) / Math.max(1, t1 - t0)) * (W - padL - padR); };
     var sy = function (v) { return H - padB - (v / ymax) * (H - padT - padB); };
-    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": "Hourly IPU at " + st.name + " over the last 24 hours" });
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": i18("Hourly IPU at ") + st.name + i18(" over the last 24 hours") });
     for (var g = 0; g <= ymax; g += 50) {
       svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
       svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
@@ -2440,7 +2454,7 @@
       svg.appendChild(svgEl("text", { x: sx(tt), y: H - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, L.fmtTime(new Date(tt))));
     }
     if (S.rule) {
-      [[S.rule.outdoor.threshold, "100: outdoor activities stop above this", T().outdoor], [S.rule.closure.threshold, "200: school-closure level", T().closure]].forEach(function (r) {
+      [[S.rule.outdoor.threshold, i18("100: outdoor activities stop above this"), T().outdoor], [S.rule.closure.threshold, i18("200: school-closure level"), T().closure]].forEach(function (r) {
         svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(r[0]), y2: sy(r[0]), stroke: r[2], "stroke-dasharray": "4 4" }));
         svg.appendChild(svgEl("text", { x: padL + 4, y: sy(r[0]) - 5, "font-size": 11, fill: r[2], stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, r[1]));
       });
@@ -2487,27 +2501,27 @@
     }
     var det = document.createElement("details");
     det.className = "inline-details";
-    det.innerHTML = "<summary>Show these readings as a table</summary><div class='table-wrap'><table class='mini'><thead><tr><th>Hour</th><th class='num'>IPU</th><th>Category</th></tr></thead><tbody>" +
+    det.innerHTML = i18("<summary>Show these readings as a table</summary><div class='table-wrap'><table class='mini'><thead><tr><th>Hour</th><th class='num'>IPU</th><th>Category</th></tr></thead><tbody>") +
       pts.slice().reverse().map(function (p) { return "<tr><td>" + esc(L.fmtDateTime(p.t)) + "</td><td class='num'>" + p.y + "</td><td>" + badge(p.y) + "</td></tr>"; }).join("") +
       "</tbody></table></div>";
     box.appendChild(det);
     var src = document.createElement("p"); src.className = "small muted";
-    src.textContent = "Source: DOE APIMS hourly table for " + st.name + " (" + st.id + "). Each value is DOE's 24-hour running average for that hour.";
+    src.textContent = i18("Source: DOE APIMS hourly table for ") + st.name + " (" + st.id + i18("). Each value is DOE's 24-hour running average for that hour.");
     box.appendChild(src);
   }
 
   function renderDosm() {
     var box = $("dosm"), d = S.dosm;
-    if (!d || !d.rows || !d.rows.length) { box.innerHTML = '<p class="muted">DOSM history has not been downloaded yet. It is added by the hourly update.</p>'; return; }
+    if (!d || !d.rows || !d.rows.length) { box.innerHTML = i18('<p class="muted">DOSM history has not been downloaded yet. It is added by the hourly update.</p>'); return; }
     var want = [["pm25", "PM2.5", T().series], ["pm10", "PM10", T().seriesB]];
     var series = want.map(function (w) {
       return { name: w[1], color: w[2], pts: d.rows.filter(function (r) { return r[1] === w[0] && r[2] !== null; })
         .map(function (r) { return { t: new Date(r[0] + "T00:00:00Z"), y: r[2], date: r[0] }; }) };
     }).filter(function (s) { return s.pts.length > 1; });
     var month = function (key) { return L.fmtDayKey(key).replace(/^\w+ \d+ /, ""); };
-    box.innerHTML = "<p>Monthly national average of fine particles in the air (µg/m³), from DOSM. Haze years stand out as peaks. " +
-      "This is background only: it is not IPU, not per station and not current. Latest month: " + esc(d.last_month ? month(d.last_month) : "—") + ".</p>";
-    if (!series.length) { box.insertAdjacentHTML("beforeend", '<p class="muted">No PM2.5 or PM10 values in the DOSM file.</p>'); return; }
+    box.innerHTML = i18("<p>Monthly national average of fine particles in the air (µg/m³), from DOSM. Haze years stand out as peaks. ") +
+      i18("This is background only: it is not IPU, not per station and not current. Latest month: ") + esc(d.last_month ? month(d.last_month) : "—") + ".</p>";
+    if (!series.length) { box.insertAdjacentHTML("beforeend", i18('<p class="muted">No PM2.5 or PM10 values in the DOSM file.</p>')); return; }
     var chart = document.createElement("div"); chart.className = "chart"; box.appendChild(chart);
     var all = []; series.forEach(function (s) { all = all.concat(s.pts); });
     var W = Math.max(280, chart.clientWidth || 400), H = 210, padL = 30, padR = 46, padT = 10, padB = 24;
@@ -2515,7 +2529,7 @@
     var ymax = Math.ceil(Math.max.apply(null, all.map(function (p) { return p.y; })) / 10) * 10;
     var sx = function (t) { return padL + ((t - t0) / Math.max(1, t1 - t0)) * (W - padL - padR); };
     var sy = function (v) { return H - padB - (v / ymax) * (H - padT - padB); };
-    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": "Monthly national average PM2.5 and PM10, DOSM" });
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": i18("Monthly national average PM2.5 and PM10, DOSM") });
     var gstep = ymax > 60 ? 20 : 10;
     for (var g = 0; g <= ymax; g += gstep) {
       svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
@@ -2552,8 +2566,8 @@
     chart.appendChild(svg);
     box.insertAdjacentHTML("beforeend", '<div class="legend-row">' + series.map(function (s) {
       return '<span><i style="' + swatch(s.color) + '"></i>' + esc(s.name) + "</span>";
-    }).join("") + '</div><p class="small muted" style="margin-top:8px">Source: <a href="' + esc(d.source.page) + '" rel="noopener">OpenDOSM, Monthly Air Pollution</a> (' + esc(d.source.licence) +
-      "). Source agencies: DOE and DOSM.</p>");
+    }).join("") + i18('</div><p class="small muted" style="margin-top:8px">Source: <a href="') + esc(d.source.page) + i18('" rel="noopener">OpenDOSM, Monthly Air Pollution</a> (') + esc(d.source.licence) +
+      i18("). Source agencies: DOE and DOSM.</p>"));
   }
 
   // ================================================================ how the IPU works
@@ -2563,25 +2577,25 @@
   function renderExplainer() {
     var box = $("explainer-body"), r = S.rule;
     var o = r ? r.outdoor.threshold : 100, c = r ? r.closure.threshold : 200;
-    var syms = [["**", "PM2.5, fine particles (the main cause of haze)"], ["*", "PM10, larger particles"], ["a", "Sulphur dioxide (SO\u2082)"],
-                ["b", "Nitrogen dioxide (NO\u2082)"], ["c", "Ozone (O\u2083)"], ["d", "Carbon monoxide (CO)"], ["&", "Two or more pollutants with the same index"]];
-    var rows = L.CATEGORIES.map(function (k) {
+    var syms = [["**", i18("PM2.5, fine particles (the main cause of haze)")], ["*", i18("PM10, larger particles")], ["a", i18("Sulphur dioxide (SO\u2082)")],
+                ["b", i18("Nitrogen dioxide (NO\u2082)")], ["c", i18("Ozone (O\u2083)")], ["d", i18("Carbon monoxide (CO)")], ["&", i18("Two or more pollutants with the same index")]];
+    var rows = L.categories().map(function (k) {
       var range = k.max === Infinity ? "300+" : k.min + "–" + k.max;
-      var school = k.max <= 50 ? "Normal" : k.max <= 100 ? "Normal" : k.max <= 200 ? "Outdoor activities stop above " + o + "; schools close once it reaches " + c : "Schools closed";
+      var school = k.max <= 50 ? i18("Normal") : k.max <= 100 ? i18("Normal") : k.max <= 200 ? i18("Outdoor activities stop above ") + o + i18("; schools close once it reaches ") + c : i18("Schools closed");
       return "<tr><td>" + badge(k.min === 0 ? 0 : k.min) + '</td><td class="num">' + range + "</td><td>" + esc(school) + "</td></tr>";
     }).join("");
     box.innerHTML = '<div class="explain-grid">' +
-      "<div><h3>One number from six pollutants</h3><p>Each DOE station measures six pollutants. Each gets its own sub-index, and the IPU you see is the highest of them. " +
-      "The small symbol APIMS shows beside a reading says which pollutant set it:</p><dl class=\"sym-list\">" +
+      i18("<div><h3>One number from six pollutants</h3><p>Each DOE station measures six pollutants. Each gets its own sub-index, and the IPU you see is the highest of them. ") +
+      i18("The small symbol APIMS shows beside a reading says which pollutant set it:</p><dl class=\"sym-list\">") +
       syms.map(function (x) { return "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl></div>" +
-      "<div><h3>Why it lags behind the haze you see</h3><p>For PM2.5 and PM10, the particles that make haze, DOE uses a <b>24-hour running average</b>: every hourly IPU reflects the whole last day. " +
-      "So thick smoke takes hours to push the IPU up, and the IPU stays high for hours after the air clears. Gases use shorter averages: one hour for ozone, sulphur dioxide and nitrogen dioxide, eight hours for carbon monoxide.</p>" +
-      "<p>Try it. This is an illustration with made-up numbers, not real readings:</p>" +
-      '<div class="lag-controls"><label>Thick smoke lasts <output id="lag-h-out"></output><input id="lag-h" type="range" min="1" max="24" step="1" value="' + LAG.hours + '"></label>' +
-      '<label>Smoke level in the air <output id="lag-l-out"></output><input id="lag-l" type="range" min="60" max="300" step="10" value="' + LAG.level + '"></label></div>' +
+      i18("<div><h3>Why it lags behind the haze you see</h3><p>For PM2.5 and PM10, the particles that make haze, DOE uses a <b>24-hour running average</b>: every hourly IPU reflects the whole last day. ") +
+      i18("So thick smoke takes hours to push the IPU up, and the IPU stays high for hours after the air clears. Gases use shorter averages: one hour for ozone, sulphur dioxide and nitrogen dioxide, eight hours for carbon monoxide.</p>") +
+      i18("<p>Try it. This is an illustration with made-up numbers, not real readings:</p>") +
+      i18('<div class="lag-controls"><label>Thick smoke lasts <output id="lag-h-out"></output><input id="lag-h" type="range" min="1" max="24" step="1" value="') + LAG.hours + '"></label>' +
+      i18('<label>Smoke level in the air <output id="lag-l-out"></output><input id="lag-l" type="range" min="60" max="300" step="10" value="') + LAG.level + '"></label></div>' +
       '<div id="lag-chart" class="chart"></div><p class="lag-result" id="lag-result"></p></div>' +
-      "<div><h3>What the numbers mean</h3><div class='table-wrap'><table class='cat-table'><thead><tr><th>Category</th><th class='num'>IPU</th><th>For schools (current rule)</th></tr></thead><tbody>" +
-      rows + "</tbody></table></div><p class='small muted' style='margin-top:8px'>School rule: " + esc(r ? r.name : "") + ".</p></div>" +
+      i18("<div><h3>What the numbers mean</h3><div class='table-wrap'><table class='cat-table'><thead><tr><th>Category</th><th class='num'>IPU</th><th>For schools (current rule)</th></tr></thead><tbody>") +
+      rows + i18("</tbody></table></div><p class='small muted' style='margin-top:8px'>School rule: ") + esc(r ? loc(r, "name") : "") + ".</p></div>" +
       "</div>";
     drawLag();
   }
@@ -2600,7 +2614,7 @@
     var peakAvg = Math.max.apply(null, avg), peakAt = avg.indexOf(peakAvg);
     var backDown = -1;
     for (var h2 = peakAt; h2 < N; h2++) if (avg[h2] <= base + 0.5) { backDown = h2; break; }
-    $("lag-h-out").textContent = " " + H + " hour" + (H > 1 ? "s" : "");
+    $("lag-h-out").textContent = " " + H + i18(" hour") + (H > 1 ? i18("s") : "");
     $("lag-l-out").textContent = " " + lvl + " µg/m³";
     chart.innerHTML = "";
     var W2 = Math.max(280, chart.clientWidth || 400), Ht = 190, padL = 34, padR = 8, padT = 12, padB = 26;
@@ -2608,23 +2622,23 @@
     var sx = function (h) { return padL + (h / (N - 1)) * (W2 - padL - padR); };
     var sy = function (v) { return Ht - padB - (v / ymax) * (Ht - padT - padB); };
     var svg = svgEl("svg", { viewBox: "0 0 " + W2 + " " + Ht, width: W2, height: Ht, role: "img",
-      "aria-label": "Illustration: hourly smoke level and its 24-hour average" });
+      "aria-label": i18("Illustration: hourly smoke level and its 24-hour average") });
     for (var g = 0; g <= ymax; g += 50) {
       svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
       svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
     }
-    for (var t = 0; t < N; t += 12) svg.appendChild(svgEl("text", { x: sx(t), y: Ht - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, "hour " + t));
+    for (var t = 0; t < N; t += 12) svg.appendChild(svgEl("text", { x: sx(t), y: Ht - 6, "font-size": 11, fill: T().axis, "text-anchor": "middle" }, i18("hour ") + t));
     svg.appendChild(svgEl("rect", { x: sx(start), y: padT, width: Math.max(1, sx(start + H) - sx(start)), height: Ht - padT - padB, fill: T().series, opacity: 0.08 }));
     var line = function (arr) { return arr.map(function (v, h) { return (h ? "L" : "M") + sx(h).toFixed(1) + " " + sy(v).toFixed(1); }).join(" "); };
     svg.appendChild(svgEl("path", { d: line(hourly), fill: "none", stroke: T().series, color: T().series, "stroke-width": 1.8, "class": "series" }));
     svg.appendChild(svgEl("path", { d: line(avg), fill: "none", stroke: T().ink, "stroke-width": 3, "stroke-linejoin": "round" }));
-    svg.appendChild(svgEl("text", { x: sx(start + H / 2), y: sy(lvl) - 6, "font-size": 11, fill: T().series, "text-anchor": "middle", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "smoke right now"));
-    svg.appendChild(svgEl("text", { x: Math.min(sx(peakAt) + 6, W2 - 120), y: sy(peakAvg) - 8, "font-size": 11, fill: T().ink, stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "24-hour average (what the IPU follows)"));
+    svg.appendChild(svgEl("text", { x: sx(start + H / 2), y: sy(lvl) - 6, "font-size": 11, fill: T().series, "text-anchor": "middle", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, i18("smoke right now")));
+    svg.appendChild(svgEl("text", { x: Math.min(sx(peakAt) + 6, W2 - 120), y: sy(peakAvg) - 8, "font-size": 11, fill: T().ink, stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, i18("24-hour average (what the IPU follows)")));
     chart.appendChild(svg);
     var after = backDown > 0 ? backDown - (start + H) : null;
-    $("lag-result").innerHTML = "The air reaches <b>" + lvl + "</b> µg/m³ for " + H + " hour" + (H > 1 ? "s" : "") + ", but the 24-hour average only climbs to <b>" + Math.round(peakAvg) +
-      "</b>, " + Math.round(peakAvg / lvl * 100) + "% of the real level" + (after !== null ? ", and it stays raised for <b>" + after + " hours</b> after the smoke has gone." : ".") +
-      (H >= 24 ? " Only smoke lasting a full day pushes the average all the way up." : " Haze has to last most of a day to push the IPU all the way up.");
+    $("lag-result").innerHTML = i18("The air reaches <b>") + lvl + i18("</b> µg/m³ for ") + H + i18(" hour") + (H > 1 ? i18("s") : "") + i18(", but the 24-hour average only climbs to <b>") + Math.round(peakAvg) +
+      "</b>, " + Math.round(peakAvg / lvl * 100) + i18("% of the real level") + (after !== null ? i18(", and it stays raised for <b>") + after + i18(" hours</b> after the smoke has gone.") : ".") +
+      (H >= 24 ? i18(" Only smoke lasting a full day pushes the average all the way up.") : i18(" Haze has to last most of a day to push the IPU all the way up."));
   }
 
   // ================================================================ about
@@ -2633,48 +2647,48 @@
     var r = S.rule, d = S.data;
     if (!r) { $("about-body").innerHTML = ""; return; }
     var schoolsLine = S.schoolsMeta && S.schoolsMeta.available
-      ? "School locations come from the official KPM list (" + esc(S.schoolsMeta.count) + " schools with coordinates" +
-        (S.schoolsMeta.skipped_no_coordinates ? "; " + esc(S.schoolsMeta.skipped_no_coordinates) + " without coordinates cannot be searched" : "") + ")."
-      : "The official KPM school list has not been added yet. Until it is, schools and towns are found with OpenStreetMap, which is community-made and may be incomplete or wrong.";
+      ? i18("School locations come from the official KPM list (") + esc(S.schoolsMeta.count) + i18(" schools with coordinates") +
+        (S.schoolsMeta.skipped_no_coordinates ? "; " + esc(S.schoolsMeta.skipped_no_coordinates) + i18(" without coordinates cannot be searched") : "") + ")."
+      : i18("The official KPM school list has not been added yet. Until it is, schools and towns are found with OpenStreetMap, which is community-made and may be incomplete or wrong.");
     $("about-body").innerHTML =
-      "<details><summary>Where the readings come from</summary><div>" +
-      "<p>Every hour an automated job reads the Department of Environment's Air Pollutant Index Management System (APIMS), using the same public data the official portal at " +
-      '<a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">eqms.doe.gov.my/APIMS</a> shows: each station\'s latest reading and its last 24 hourly readings. ' +
-      "The site is then republished, and an open page re-reads the data every 10 minutes. Nothing is estimated or filled in: a station without a recent reading is shown as having no current reading.</p>" +
-      "<p>The IPU (API) is DOE's 24-hour running average of the dominant pollutant, so it changes slowly and lags sudden changes in haze.</p></div></details>" +
-      "<details><summary>How a place is matched to a station</summary><div>" +
-      "<p>For a school, town or place, the dashboard uses the nearest DOE monitoring station that has a current reading (straight-line distance), and shows that distance on the map. " +
-      "It lists the next nearest stations and says when stations close by disagree. The station's reading is never presented as a measurement at the school or place itself.</p>" +
-      "<p>On the map, the soft glow around each station grows with its reading. It is a visual cue only, not a measured area of haze.</p></div></details>" +
-      "<details><summary>The school-closure rule</summary><div>" +
-      "<p><b>" + esc(r.name) + "</b>, in force from " + esc(L.fmtDayKey(r.effective_from)) + ".</p><ul>" +
-      "<li>" + esc(r.closure.summary) + " " + esc(r.closure.note) + "</li><li>" + esc(r.outdoor.summary) + "</li></ul>" +
-      "<p>How the dashboard applies it:</p><ul>" + r.how_applied.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" +
-      "<p>" + esc(r.who_decides) + "</p>" +
-      "<p>Earlier rule: " + r.previous_rules.map(function (p) { return esc(L.fmtDayKey(p.from)) + " to " + esc(L.fmtDayKey(p.to)) + ": " + esc(p.summary); }).join(" ") + "</p>" +
-      "<p>Sources:</p><ul>" + r.sources.map(function (s) { return '<li><a href="' + esc(s.url) + '" rel="noopener">' + esc(s.title) + "</a> (" + esc(s.date) + ")</li>"; }).join("") + "</ul></div></details>" +
-      "<details><summary>Official closure announcements</summary><div>" +
-      "<p>When a state or KPM announces that schools are closed, the closure check shows it as <b>officially closed</b> for the area and dates announced, instead of the IPU prediction. " +
-      "Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama every hour from 6 am to 7 pm and adds new closures and extensions.</p>" +
-      "<p>The site works out which state and district a school or place is in from the official district boundaries published by data.gov.my, so a closure for a state or district is applied to every place inside it. " +
-      "Announcements reported between 6 am and 7 pm usually appear within an hour; ones reported later in the evening appear after the 6 am check. Always confirm with your school or the State Education Department (JPN).</p></div></details>" +
-      "<details><summary>Rule vs reality</summary><div>" +
-      "<p>For every official closure, the site compares the official DOE readings in the closed area with the national rule, under which schools in the affected area close once the IPU reaches 200. " +
-      "It looks at the 24 hours and the 3 days before the announcement, and at the highest reading each day from 2 days before until the closure ends. " +
-      "A closure that \"went further than the national rule\" is not wrong: states can decide on other grounds, such as health data or the weather outlook. The comparison only shows how the decision relates to the readings.</p></div></details>" +
-      "<details><summary>The forecast and the haze sources</summary><div>" +
-      "<p>The forecast is an estimate made by this site, kept apart from the official readings. It takes the CAMS air-quality model's PM2.5 forecast (Copernicus Atmosphere Monitoring Service, via Open-Meteo) at each station and scales it to that station's official IPU over the last 24 hours. " +
-      "It is shown only next to a current official reading, always labelled as an estimate, and never used for the school closure check, which uses DOE APIMS readings only.</p>" +
-      "<p>Fire hotspots are NASA FIRMS satellite detections (VIIRS) from the last 24 hours; detections older than 36 hours are never shown. Wind is the current 10 m wind from the Open-Meteo weather model. Together they show where fires are and which way the wind blows, not the actual path of the smoke.</p></div></details>" +
-      "<details><summary>Limitations</summary><div><ul>" +
-      "<li>Malaysia has about 68 DOE stations. Many schools are far from one, and a single station cannot show local differences.</li>" +
-      "<li>The dashboard cannot see official announcements. A school may be closed or open for reasons this rule does not capture, such as a state directive.</li>" +
-      "<li>Weekends and the year-end school holidays are included; public holidays and state holidays are not.</li>" +
-      "<li>The APIMS data endpoints are not a documented public API. If DOE changes them, updates stop and this page marks its readings as outdated.</li>" +
-      "<li>Updates run on GitHub Actions at minute " + UPDATE_MINUTE + " of every hour; GitHub sometimes starts them a few minutes late.</li>" +
-      "<li>DOSM history is national monthly averages of pollutant concentrations, not IPU and not per station.</li>" +
+      i18("<details><summary>Where the readings come from</summary><div>") +
+      i18("<p>Every hour an automated job reads the Department of Environment's Air Pollutant Index Management System (APIMS), using the same public data the official portal at ") +
+      i18('<a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">eqms.doe.gov.my/APIMS</a> shows: each station\'s latest reading and its last 24 hourly readings. ') +
+      i18("The site is then republished, and an open page re-reads the data every 10 minutes. Nothing is estimated or filled in: a station without a recent reading is shown as having no current reading.</p>") +
+      i18("<p>The IPU (API) is DOE's 24-hour running average of the dominant pollutant, so it changes slowly and lags sudden changes in haze.</p></div></details>") +
+      i18("<details><summary>How a place is matched to a station</summary><div>") +
+      i18("<p>For a school, town or place, the dashboard uses the nearest DOE monitoring station that has a current reading (straight-line distance), and shows that distance on the map. ") +
+      i18("It lists the next nearest stations and says when stations close by disagree. The station's reading is never presented as a measurement at the school or place itself.</p>") +
+      i18("<p>On the map, the soft glow around each station grows with its reading. It is a visual cue only, not a measured area of haze.</p></div></details>") +
+      i18("<details><summary>The school-closure rule</summary><div>") +
+      "<p><b>" + esc(loc(r, "name")) + i18("</b>, in force from ") + esc(L.fmtDayKey(r.effective_from)) + ".</p><ul>" +
+      "<li>" + esc(loc(r.closure, "summary")) + " " + esc(loc(r.closure, "note")) + "</li><li>" + esc(loc(r.outdoor, "summary")) + "</li></ul>" +
+      i18("<p>How the dashboard applies it:</p><ul>") + (loc(r, "how_applied") || []).map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" +
+      "<p>" + esc(loc(r, "who_decides")) + "</p>" +
+      i18("<p>Earlier rule: ") + r.previous_rules.map(function (p) { return esc(L.fmtDayKey(p.from)) + i18(" to ") + esc(L.fmtDayKey(p.to)) + ": " + esc(loc(p, "summary")); }).join(" ") + "</p>" +
+      i18("<p>Sources:</p><ul>") + r.sources.map(function (s) { return '<li><a href="' + esc(s.url) + '" rel="noopener">' + esc(s.title) + "</a> (" + esc(s.date) + ")</li>"; }).join("") + "</ul></div></details>" +
+      i18("<details><summary>Official closure announcements</summary><div>") +
+      i18("<p>When a state or KPM announces that schools are closed, the closure check shows it as <b>officially closed</b> for the area and dates announced, instead of the IPU prediction. ") +
+      i18("Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama every hour from 6 am to 7 pm and adds new closures and extensions.</p>") +
+      i18("<p>The site works out which state and district a school or place is in from the official district boundaries published by data.gov.my, so a closure for a state or district is applied to every place inside it. ") +
+      i18("Announcements reported between 6 am and 7 pm usually appear within an hour; ones reported later in the evening appear after the 6 am check. Always confirm with your school or the State Education Department (JPN).</p></div></details>") +
+      i18("<details><summary>Rule vs reality</summary><div>") +
+      i18("<p>For every official closure, the site compares the official DOE readings in the closed area with the national rule, under which schools in the affected area close once the IPU reaches 200. ") +
+      i18("It looks at the 24 hours and the 3 days before the announcement, and at the highest reading each day from 2 days before until the closure ends. ") +
+      i18("A closure that \"went further than the national rule\" is not wrong: states can decide on other grounds, such as health data or the weather outlook. The comparison only shows how the decision relates to the readings.</p></div></details>") +
+      i18("<details><summary>The forecast and the haze sources</summary><div>") +
+      i18("<p>The forecast is an estimate made by this site, kept apart from the official readings. It takes the CAMS air-quality model's PM2.5 forecast (Copernicus Atmosphere Monitoring Service, via Open-Meteo) at each station and scales it to that station's official IPU over the last 24 hours. ") +
+      i18("It is shown only next to a current official reading, always labelled as an estimate, and never used for the school closure check, which uses DOE APIMS readings only.</p>") +
+      i18("<p>Fire hotspots are NASA FIRMS satellite detections (VIIRS) from the last 24 hours; detections older than 36 hours are never shown. Wind is the current 10 m wind from the Open-Meteo weather model. Together they show where fires are and which way the wind blows, not the actual path of the smoke.</p></div></details>") +
+      i18("<details><summary>Limitations</summary><div><ul>") +
+      i18("<li>Malaysia has about 68 DOE stations. Many schools are far from one, and a single station cannot show local differences.</li>") +
+      i18("<li>The dashboard cannot see official announcements. A school may be closed or open for reasons this rule does not capture, such as a state directive.</li>") +
+      i18("<li>Weekends and the year-end school holidays are included; public holidays and state holidays are not.</li>") +
+      i18("<li>The APIMS data endpoints are not a documented public API. If DOE changes them, updates stop and this page marks its readings as outdated.</li>") +
+      i18("<li>Updates run on GitHub Actions at minute ") + UPDATE_MINUTE + i18(" of every hour; GitHub sometimes starts them a few minutes late.</li>") +
+      i18("<li>DOSM history is national monthly averages of pollutant concentrations, not IPU and not per station.</li>") +
       "<li>" + schoolsLine + "</li></ul>" +
-      (d && d.source ? '<p class="small muted">Data endpoints: ' + esc(d.source.current_endpoint) + " and " + esc(d.source.hourly_endpoint) + ".</p>" : "") +
+      (d && d.source ? i18('<p class="small muted">Data endpoints: ') + esc(d.source.current_endpoint) + i18(" and ") + esc(d.source.hourly_endpoint) + ".</p>" : "") +
       "</div></details>";
   }
 
@@ -2693,8 +2707,8 @@
     var m = S.schoolsMeta, el = $("search-note");
     if (!m) { el.textContent = ""; return; }
     el.textContent = m.available
-      ? "Schools and towns come from the official KPM school list. Press Search for any other place."
-      : "Press Search to find any town or school in Malaysia (OpenStreetMap). The official KPM school list has not been added yet.";
+      ? i18("Schools and towns come from the official KPM school list. Press Search for any other place.")
+      : i18("Press Search to find any town or school in Malaysia (OpenStreetMap). The official KPM school list has not been added yet.");
   }
 
   var GROUPS = { state: "States", station: "Monitoring stations", locality: "Towns and districts", school: "Schools", place: "Places (OpenStreetMap)" };
@@ -2702,12 +2716,12 @@
   function renderResults(items, extraMsg, q) {
     var html = "", last = null;
     items.forEach(function (r, i) {
-      if (r.type !== last) { html += '<div class="group">' + esc(GROUPS[r.type] || r.type) + "</div>"; last = r.type; }
+      if (r.type !== last) { html += '<div class="group">' + esc(i18(GROUPS[r.type] || r.type)) + "</div>"; last = r.type; }
       html += '<button type="button" role="option" data-i="' + i + '">' + esc(r.label) + '<span class="sub">' + esc(r.sub || "") + "</span></button>";
     });
     if (extraMsg) html += '<div class="msg">' + extraMsg + "</div>";
     if (q && q.length >= 3 && !items.some(function (r) { return r.type === "place"; })) {
-      html += '<button type="button" role="option" data-place="1">Search all places for “' + esc(q) + '”<span class="sub">Towns, neighbourhoods and schools, from OpenStreetMap</span></button>';
+      html += i18('<button type="button" role="option" data-place="1">Search all places for “') + esc(q) + i18('”<span class="sub">Towns, neighbourhoods and schools, from OpenStreetMap</span></button>');
     }
     $("results").innerHTML = html;
     $("results")._items = items;
@@ -2732,7 +2746,7 @@
     var q = $("q").value.trim();
     if (q.length < 3) { $("q").focus(); return; }
     var wait = Math.max(0, 1100 - (Date.now() - S.lastPlaceQuery));   // Nominatim allows 1 request per second
-    $("results").innerHTML = '<div class="msg">Searching places in Malaysia…</div>';
+    $("results").innerHTML = i18('<div class="msg">Searching places in Malaysia…</div>');
     setTimeout(function () {
       S.lastPlaceQuery = Date.now();
       var url = NOMINATIM + "?format=jsonv2&addressdetails=1&limit=8&countrycodes=my&accept-language=en&q=" + encodeURIComponent(q);
@@ -2747,28 +2761,75 @@
             return { type: "place", label: name, area: area, state: a.state || null, lat: Number(p.lat), lon: Number(p.lon),
                      sub: kind.charAt(0).toUpperCase() + kind.slice(1) + ([area, a.state].filter(Boolean).length ? ", " + [area, a.state].filter(Boolean).join(", ") : "") };
           }).filter(function (p) { return isFinite(p.lat) && isFinite(p.lon); });
-          renderResults(local.concat(places), places.length ? '<span class="small muted">Place results © OpenStreetMap contributors. Check it is the place you mean.</span>'
-            : "No places found for “" + esc(q) + "”. Try another spelling or a nearby town.", null);
+          renderResults(local.concat(places), places.length ? i18('<span class="small muted">Place results © OpenStreetMap contributors. Check it is the place you mean.</span>')
+            : i18("No places found for “") + esc(q) + i18("”. Try another spelling or a nearby town."), null);
         })
-        .catch(function () { $("results").innerHTML = '<div class="msg">Place search is not available right now. You can still search states and stations, or use your location.</div>'; });
+        .catch(function () { $("results").innerHTML = i18('<div class="msg">Place search is not available right now. You can still search states and stations, or use your location.</div>'); });
     }, wait);
   }
 
   function useMyLocation() {
     var btn = $("loc-btn");
-    if (!navigator.geolocation) { msg("This browser does not share its location. Search for your town or school instead."); return; }
+    if (!navigator.geolocation) { msg(i18("This browser does not share its location. Search for your town or school instead.")); return; }
     btn.disabled = true;
     navigator.geolocation.getCurrentPosition(function (pos) {
       btn.disabled = false;
       var acc = Math.round(pos.coords.accuracy || 0);
-      select({ type: "place", label: "Your location", lat: pos.coords.latitude, lon: pos.coords.longitude, source: "device",
-               sub: acc ? "Accurate to about " + (acc > 1000 ? Math.round(acc / 1000) + " km" : acc + " m") : null });
+      select({ type: "place", label: i18("Your location"), lat: pos.coords.latitude, lon: pos.coords.longitude, source: "device",
+               sub: acc ? i18("Accurate to about ") + (acc > 1000 ? Math.round(acc / 1000) + i18(" km") : acc + " m") : null });
     }, function () {
       btn.disabled = false;
-      msg("Location was not shared. Search for your town or school instead.");
+      msg(i18("Location was not shared. Search for your town or school instead."));
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 });
   }
   function msg(text) { $("results").innerHTML = '<div class="msg">' + esc(text) + "</div>"; }
+
+  // ================================================================ language
+
+  /* Static text in index.html marked with data-t (inner HTML) or data-t-attr (attributes). */
+  function translateStatic() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-t]"), function (el) {
+      if (!el.hasAttribute("data-t-en")) el.setAttribute("data-t-en", el.innerHTML.trim());
+      el.innerHTML = i18(el.getAttribute("data-t-en"));
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-t-attr]"), function (el) {
+      el.getAttribute("data-t-attr").split(" ").forEach(function (a) {
+        var k = "data-t-" + a;
+        if (!el.hasAttribute(k)) el.setAttribute(k, el.getAttribute(a) || "");
+        el.setAttribute(a, i18(el.getAttribute(k)));
+      });
+    });
+    document.title = i18("IPU Malaysia");
+    if ($("src-btn")) $("src-btn").textContent = M.sourcesOn ? i18("Hide haze sources") : i18("Where the haze comes from");
+    var b = $("lang-btn");
+    if (b) {
+      var ms = I18.lang === "ms";
+      b.textContent = ms ? "EN" : "BM";
+      b.setAttribute("lang", ms ? "en" : "ms");
+      b.title = ms ? "Switch to English" : "Tukar ke Bahasa Melayu";
+      b.setAttribute("aria-label", b.title);
+    }
+  }
+
+  function applyLang(lang) {
+    I18.set(lang);
+    L.setLang(I18.lang, i18);
+    S.smoke = null; S.trace = null; S.smokeHere = null;   // cached text with place names
+    SIM.built = false;
+    if ($("share-panel")) { $("share-panel").hidden = true; $("share-btn").setAttribute("aria-expanded", "false"); }
+    translateStatic();
+    setThemeButton();
+    $("src-btn").textContent = M.sourcesOn ? i18("Hide haze sources") : i18("Where the haze comes from");
+    renderLegend();
+    if (S.data) renderAll();
+    if (S.sel) renderSelection(false);
+    renderExplainer();
+    renderDosm();
+    renderSearchNote();
+    if (S.lobbyOn) renderLobby();
+    setHash(S.sel);
+    if (S.lobbyOn && location.hash.indexOf("screen=1") < 0) { try { history.replaceState(null, "", location.hash + "&screen=1"); } catch (e) { /* ignore */ } }
+  }
 
   // ================================================================ theme
 
@@ -2777,7 +2838,7 @@
     var b = $("theme-btn");
     if (!b) return;
     b.setAttribute("aria-pressed", on ? "true" : "false");
-    b.querySelector(".theme-label").textContent = on ? "Neon on" : "Neon";
+    b.querySelector(".theme-label").textContent = on ? i18("Neon on") : i18("Neon");
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", T().meta);
   }
@@ -2909,10 +2970,10 @@
     $("a11y-close").addEventListener("click", function () { $("a11y-panel").hidden = true; $("a11y-btn").setAttribute("aria-expanded", "false"); $("a11y-btn").focus(); });
     $("a11y-sample").addEventListener("click", function () {
       var vals = [50, 100, 150, 200, 300], names = vals.map(function (v) { return v + " (" + cat(v).label + ")"; });
-      announce("Sample tones: " + names.join(", ") + ".");
+      announce(i18("Sample tones: ") + names.join(", ") + ".");
       var lbl = $("a11y-sample-now");
       playTones(vals.map(function (v) { return v; }).reduce(function (acc, v) { return acc.concat([v, v, v]); }, []), {
-        onStep: function (i) { lbl.textContent = "Now playing: " + names[Math.floor(i / 3)]; },
+        onStep: function (i) { lbl.textContent = i18("Now playing: ") + names[Math.floor(i / 3)]; },
         onEnd: function () { lbl.textContent = ""; }
       });
     });
@@ -2924,6 +2985,7 @@
       if (ev.key === "Escape" && !$("a11y-panel").hidden) { $("a11y-panel").hidden = true; $("a11y-btn").setAttribute("aria-expanded", "false"); $("a11y-btn").focus(); }
     });
     $("src-btn").addEventListener("click", function () { setSources(!M.sourcesOn, true); });
+    $("lang-btn").addEventListener("click", function () { applyLang(I18.lang === "ms" ? "en" : "ms"); });
     document.addEventListener("click", function (ev) {
       if (ev.target.closest("#trace-show")) {
         if (!M.sourcesOn) setSources(true, false);
@@ -2974,6 +3036,7 @@
   }
 
   function init() {
+    translateStatic();
     setThemeButton();
     $("a11y-sound").checked = SOUND.on;
     $("a11y-btn").classList.toggle("is-on", SOUND.on);

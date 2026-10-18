@@ -5,6 +5,15 @@
   "use strict";
 
   var TZ = "Asia/Kuala_Lumpur";
+
+  // Language: text here is written in English. The page sets a translator for
+  // Bahasa Melayu (docs/i18n.js); tests use English.
+  var LANG = "en";
+  var tr = function (s) { return s; };
+  function setLang(lang, fn) {
+    LANG = lang === "ms" ? "ms" : "en";
+    tr = LANG === "ms" && typeof fn === "function" ? fn : function (s) { return s; };
+  }
   var STALE_HOURS = 3;          // a station reading older than this is not "current"
   var UPDATE_STALE_HOURS = 2.5; // no successful update for this long = data may be outdated
 
@@ -25,13 +34,20 @@
 
   function categoryFor(api) {
     if (api === null || api === undefined || isNaN(api)) return null;
-    for (var i = 0; i < CATEGORIES.length; i++) if (api <= CATEGORIES[i].max) return CATEGORIES[i];
-    return CATEGORIES[CATEGORIES.length - 1];
+    var c = CATEGORIES[CATEGORIES.length - 1];
+    for (var i = 0; i < CATEGORIES.length; i++) if (api <= CATEGORIES[i].max) { c = CATEGORIES[i]; break; }
+    return LANG === "en" ? c : catCopy(c);
   }
+  function catCopy(c) {
+    return { key: c.key, label: tr(c.label), min: c.min, max: c.max, color: c.color, ink: c.ink };
+  }
+  /* The categories, with labels in the page language. */
+  function categories() { return LANG === "en" ? CATEGORIES : CATEGORIES.map(catCopy); }
 
   function pollutantName(sym) {
     if (!sym) return null;
-    return POLLUTANTS[String(sym).trim()] || null;
+    var p = POLLUTANTS[String(sym).trim()];
+    return p ? tr(p) : null;
   }
 
   // ------------------------------------------------------------ time
@@ -64,6 +80,10 @@
 
   var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  var MONTHS_MS = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis"];
+  var WEEKDAYS_MS = ["Ahd", "Isn", "Sel", "Rab", "Kha", "Jum", "Sab"];
+  function monthName(i) { return (LANG === "ms" ? MONTHS_MS : MONTHS)[i]; }
+  function wdName(i) { return (LANG === "ms" ? WEEKDAYS_MS : WEEKDAYS)[i]; }
 
   function fmtTime(date) {
     if (!date) return "—";
@@ -74,13 +94,16 @@
   function fmtDateTime(date) {
     if (!date) return "—";
     var p = mytParts(date);
-    return p.weekday + " " + Number(p.day) + " " + MONTHS[Number(p.month) - 1] + " " + p.year + ", " + p.hour + ":" + p.minute;
+    return wdName(WEEKDAYS.indexOf(p.weekday)) + " " + Number(p.day) + " " + monthName(Number(p.month) - 1) + " " + p.year + ", " + p.hour + ":" + p.minute;
   }
 
   function fmtDayKey(key) {
     var d = new Date(key + "T00:00:00Z");
-    return WEEKDAYS[d.getUTCDay()] + " " + d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear();
+    return wdName(d.getUTCDay()) + " " + d.getUTCDate() + " " + monthName(d.getUTCMonth()) + " " + d.getUTCFullYear();
   }
+
+  /* Short weekday name for display, in the page language ("Mon" / "Isn"). */
+  function dayName(key) { return wdName(new Date(key + "T00:00:00Z").getUTCDay()); }
 
   function addDaysKey(key, n) {
     var d = new Date(key + "T00:00:00Z");
@@ -95,13 +118,14 @@
   function hoursBetween(a, b) { return (b.getTime() - a.getTime()) / 3600000; }
 
   function ago(date, now) {
-    if (!date) return "never";
+    var ms = LANG === "ms";
+    if (!date) return ms ? "tiada" : "never";
     var mins = Math.round((now - date) / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return mins + " min ago";
+    if (mins < 1) return ms ? "baru sahaja" : "just now";
+    if (mins < 60) return mins + (ms ? " min lalu" : " min ago");
     var h = Math.floor(mins / 60), m = mins % 60;
-    if (h < 48) return h + " h " + (m ? m + " min " : "") + "ago";
-    return Math.round(h / 24) + " days ago";
+    if (h < 48) return ms ? h + " j " + (m ? m + " min " : "") + "lalu" : h + " h " + (m ? m + " min " : "") + "ago";
+    return Math.round(h / 24) + (ms ? " hari lalu" : " days ago");
   }
 
   // ------------------------------------------------------------ freshness
@@ -115,10 +139,10 @@
     var failed = !!data && data.status === "failed";
     var stale = failed || obsAge > STALE_HOURS || succAge > UPDATE_STALE_HOURS;
     var reasons = [];
-    if (!data || !data.stations || !data.stations.length) reasons.push("No readings have been retrieved yet.");
-    if (failed) reasons.push("The last attempt to read APIMS failed.");
-    if (succAge > UPDATE_STALE_HOURS && isFinite(succAge)) reasons.push("No successful update for " + Math.floor(succAge) + " hours.");
-    if (obsAge > STALE_HOURS && isFinite(obsAge)) reasons.push("The newest reading is " + Math.floor(obsAge) + " hours old.");
+    if (!data || !data.stations || !data.stations.length) reasons.push(tr("No readings have been retrieved yet."));
+    if (failed) reasons.push(tr("The last attempt to read APIMS failed."));
+    if (succAge > UPDATE_STALE_HOURS && isFinite(succAge)) reasons.push(tr("No successful update for ") + Math.floor(succAge) + tr(" hours."));
+    if (obsAge > STALE_HOURS && isFinite(obsAge)) reasons.push(tr("The newest reading is ") + Math.floor(obsAge) + tr(" hours old."));
     return {
       lastSuccess: lastSuccess, lastAttempt: lastAttempt, observation: obs,
       obsAgeHours: obsAge, successAgeHours: succAge,
@@ -176,26 +200,26 @@
     if (ref && shown.indexOf(ref) < 0) shown.push(ref);
     var notes = [];
     if (!ref) {
-      notes.push("No station has a current reading, so no reference reading can be shown.");
+      notes.push(tr("No station has a current reading, so no reference reading can be shown."));
     } else {
       if (ref !== nearestAny) {
-        notes.push("The nearest station, " + nearestAny.station.name + " (" + Math.round(nearestAny.km) +
-          " km), has no current reading, so the next nearest station with a current reading is used.");
+        notes.push(tr("The nearest station, ") + nearestAny.station.name + " (" + Math.round(nearestAny.km) +
+          tr(" km), has no current reading, so the next nearest station with a current reading is used."));
       }
       if (ref.km > 40) {
-        notes.push("The reference station is " + Math.round(ref.km) + " km away, so its reading may not reflect local conditions.");
+        notes.push(tr("The reference station is ") + Math.round(ref.km) + tr(" km away, so its reading may not reflect local conditions."));
       }
       if (opts.state && ref.station.state && !sameState(opts.state, ref.station.state)) {
-        notes.push("The reference station is in " + ref.station.state + ", not " + opts.state + ".");
+        notes.push(tr("The reference station is in ") + ref.station.state + tr(", not ") + opts.state + ".");
       }
       // other relevant stations: within 30 km of the location and reading noticeably differently
       var differ = list.filter(function (x) {
         return x !== ref && x.km <= 30 && stationCurrent(x.station, now) && Math.abs(x.station.api - ref.station.api) >= 30;
       });
       if (differ.length) {
-        notes.push("Other stations within 30 km read differently (" + differ.map(function (x) {
-          return x.station.name + " " + x.station.api + ", " + Math.round(x.km) + " km";
-        }).join("; ") + "). Air quality may vary across this area; all nearby readings are listed below.");
+        notes.push(tr("Other stations within 30 km read differently (") + differ.map(function (x) {
+          return x.station.name + " " + x.station.api + ", " + Math.round(x.km) + tr(" km");
+        }).join("; ") + tr("). Air quality may vary across this area; all nearby readings are listed below."));
       }
     }
     return { reference: ref, nearest: nearestAny, shown: shown, notes: notes, all: list };
@@ -224,7 +248,7 @@
     Object.keys(wk).forEach(function (k) {
       if (k !== "default" && sameState(k, state)) days = wk[k];
     });
-    if (days.indexOf(weekdayOfKey(dateKey)) >= 0) return { kind: "weekend", label: "Weekend" };
+    if (days.indexOf(weekdayOfKey(dateKey)) >= 0) return { kind: "weekend", label: tr("Weekend") };
     var hols = rule.school_holidays || [];
     var groupA = [];
     hols.forEach(function (h) { if (Array.isArray(h.states)) groupA = groupA.concat(h.states); });
@@ -264,7 +288,7 @@
     var closure = rule.closure, outdoor = rule.outdoor;
     var res = { available: false };
     if (!st || !stationCurrent(st, now)) {
-      res.reason = "There is no current official reading for the reference station, so no prediction can be made.";
+      res.reason = tr("There is no current official reading for the reference station, so no prediction can be made.");
       return res;
     }
     var latestT = parseTime(st.observed);
@@ -288,34 +312,34 @@
     res.tomorrowKey = tomorrowKey;
     res.tomorrowNoSchool = noSchool;
 
-    var latestTxt = st.api + " at " + fmtTime(latestT);
+    var latestTxt = st.api + tr(" at ") + fmtTime(latestT);
     if (reachedNow) {
       res.level = "may_close";
-      res.status = "Schools may be closed";
-      res.headline = "Schools in this area may be closed tomorrow";
-      res.detail = "The reference station reads IPU " + latestTxt + ", which has reached the closure level of " +
-        closure.threshold + ". Under the current rule, schools in the affected area close immediately at this level, " +
-        "so a closure may already apply today and may continue tomorrow.";
+      res.status = tr("Schools may be closed");
+      res.headline = tr("Schools in this area may be closed tomorrow");
+      res.detail = tr("The reference station reads IPU ") + latestTxt + tr(", which has reached the closure level of ") +
+        closure.threshold + tr(". Under the current rule, schools in the affected area close immediately at this level, ") +
+        tr("so a closure may already apply today and may continue tomorrow.");
     } else if (reachedToday) {
       res.level = "may_close";
-      res.status = "Schools may be closed";
-      res.headline = "Schools in this area may be closed tomorrow";
-      res.detail = "IPU reached " + max.api + " at " + fmtTime(max.t) + " today, at or above the closure level of " +
-        closure.threshold + ". The latest reading is lower (" + latestTxt + "). Whether schools open tomorrow depends on the official announcement.";
+      res.status = tr("Schools may be closed");
+      res.headline = tr("Schools in this area may be closed tomorrow");
+      res.detail = tr("IPU reached ") + max.api + tr(" at ") + fmtTime(max.t) + tr(" today, at or above the closure level of ") +
+        closure.threshold + tr(". The latest reading is lower (") + latestTxt + tr("). Whether schools open tomorrow depends on the official announcement.");
     } else {
       res.level = "not_reached";
-      res.status = "Not predicted to close";
-      res.headline = "Closure threshold not reached";
-      res.detail = "The latest reading is " + latestTxt + (max && max.api !== st.api ? " (highest today: " + max.api + " at " + fmtTime(max.t) + ")" : "") +
-        ", below the closure level of " + closure.threshold + ". Based on readings so far, no haze closure is predicted for tomorrow. " +
-        "This can change if readings rise later today.";
+      res.status = tr("Not predicted to close");
+      res.headline = tr("Closure threshold not reached");
+      res.detail = tr("The latest reading is ") + latestTxt + (max && max.api !== st.api ? tr(" (highest today: ") + max.api + tr(" at ") + fmtTime(max.t) + ")" : "") +
+        tr(", below the closure level of ") + closure.threshold + tr(". Based on readings so far, no haze closure is predicted for tomorrow. ") +
+        tr("This can change if readings rise later today.");
     }
     if (noSchool) {
-      var where = state || st.state || "this state";
-      res.status = noSchool.kind === "weekend" ? "No school (weekend)" : "No school (holiday)";
-      if (reachedToday) res.headline = "Closure threshold reached today";
-      res.detail += " Tomorrow (" + fmtDayKey(tomorrowKey) + ") is not a school day in " + where +
-        (noSchool.kind === "weekend" ? " (weekend)." : " (" + noSchool.label + ").");
+      var where = state || st.state || tr("this state");
+      res.status = noSchool.kind === "weekend" ? tr("No school (weekend)") : tr("No school (holiday)");
+      if (reachedToday) res.headline = tr("Closure threshold reached today");
+      res.detail += tr(" Tomorrow (") + fmtDayKey(tomorrowKey) + tr(") is not a school day in ") + where +
+        (noSchool.kind === "weekend" ? tr(" (weekend).") : " (" + tr(noSchool.label) + ").");
       if (res.level !== "may_close") res.level = "no_school";
     }
     return res;
@@ -382,12 +406,12 @@
     (stations || []).forEach(function (s) { if (s.state) states[s.state] = true; });
     Object.keys(states).forEach(function (name) {
       var sc = scoreText(name, q, tokens);
-      if (sc) res.push({ type: "state", label: name, sub: "State", score: sc + 5, state: name });
+      if (sc) res.push({ type: "state", label: name, sub: tr("State"), score: sc + 5, state: name });
     });
     (stations || []).forEach(function (s) {
       var sc = Math.max(scoreText(s.name, q, tokens), scoreText(s.location, q, tokens),
                         scoreText(s.place, q, tokens), s.id && norm(s.id) === q ? 100 : 0);
-      if (sc) res.push({ type: "station", label: s.name, sub: "Monitoring station in " + s.state, score: sc + 3, id: s.id });
+      if (sc) res.push({ type: "station", label: s.name, sub: tr("Monitoring station in ") + s.state, score: sc + 3, id: s.id });
     });
     if (schools && schools.length) {
       var towns = {};
@@ -405,8 +429,8 @@
       Object.keys(towns).forEach(function (k) {
         var t = towns[k];
         var sc = scoreText(t.name, q, tokens);
-        if (sc) res.push({ type: "locality", label: tidy(t.name), sub: (t.kind === "district" ? "District in " : "Town in ") + tidy(t.state) +
-                           ", centre of " + t.n + " school" + (t.n > 1 ? "s" : ""),
+        if (sc) res.push({ type: "locality", label: tidy(t.name), sub: (t.kind === "district" ? tr("District in ") : tr("Town in ")) + tidy(t.state) +
+                           tr(", centre of ") + t.n + tr(" school") + (t.n > 1 ? tr("s") : ""),
                            score: sc + 2, lat: t.lat / t.n, lon: t.lon / t.n, state: tidy(t.state) });
       });
     }
@@ -447,11 +471,11 @@
 
   /* Whether a station's forecast estimate can be shown next to its current official reading. */
   function forecastStatus(fc, st, now) {
-    if (!fc) return { ok: false, reason: "No forecast estimate is available for this station." };
-    if (!stationCurrent(st, now)) return { ok: false, reason: "The station has no current official reading, so no estimate is shown." };
+    if (!fc) return { ok: false, reason: tr("No forecast estimate is available for this station.") };
+    if (!stationCurrent(st, now)) return { ok: false, reason: tr("The station has no current official reading, so no estimate is shown.") };
     var anchor = parseTime(fc.anchor), obs = parseTime(st.observed);
     if (!anchor || !obs || hoursBetween(anchor, obs) > 2) {
-      return { ok: false, reason: "The forecast estimate is older than the latest official reading. It will be refreshed with the next hourly update." };
+      return { ok: false, reason: tr("The forecast estimate is older than the latest official reading. It will be refreshed with the next hourly update.") };
     }
     return { ok: true };
   }
@@ -460,7 +484,7 @@
   var COMPASS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
   function windFrom(u, v) {
     var deg = (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360;
-    return COMPASS[Math.round(deg / 45) % 8];
+    return tr(COMPASS[Math.round(deg / 45) % 8]);
   }
 
   // ------------------------------------------------------------ air path (back-trajectory), regions, coverage zones
@@ -533,11 +557,11 @@
     return inside;
   }
   function regionOf(lon, lat) {
-    for (var i = 0; i < REGIONS.length; i++) if (inPoly(lon, lat, REGIONS[i].poly)) return REGIONS[i].name;
-    if (lon >= 98 && lon <= 104 && lat >= -1 && lat <= 6.5) return "the Strait of Malacca";
-    if (lon >= 104 && lon <= 119 && lat >= -1 && lat <= 10) return "the South China Sea";
-    if (lon >= 105 && lon <= 118 && lat >= -7 && lat < -1) return "the Java Sea";
-    return "the open sea";
+    for (var i = 0; i < REGIONS.length; i++) if (inPoly(lon, lat, REGIONS[i].poly)) return tr(REGIONS[i].name);
+    if (lon >= 98 && lon <= 104 && lat >= -1 && lat <= 6.5) return tr("the Strait of Malacca");
+    if (lon >= 104 && lon <= 119 && lat >= -1 && lat <= 10) return tr("the South China Sea");
+    if (lon >= 105 && lon <= 118 && lat >= -7 && lat < -1) return tr("the Java Sea");
+    return tr("the open sea");
   }
 
   /* Summary of a path: the places it spent most time over, ignoring the first hours
@@ -778,7 +802,7 @@
     var a = c.area || {};
     if (a.states && a.states.length) return a.states.join(", ");
     if (a.districts && a.districts.length) return a.districts.join(", ") + " (" + a.state + ")";
-    if (a.school_codes) return a.school_codes.length + " listed school" + (a.school_codes.length > 1 ? "s" : "");
+    if (a.school_codes) return a.school_codes.length + tr(" listed school") + (a.school_codes.length > 1 ? tr("s") : "");
     return "";
   }
 
@@ -799,7 +823,7 @@
     function one(g) {
       var perMin = (1 - DOSE.lightShare) * g.sedentary + DOSE.lightShare * g.light;
       var volume = perMin * 60 * g.hours;                 // m³ of air breathed during the school day
-      return { label: g.label, hours: g.hours, volume: volume, dose: pm25 * volume, whoDose: DOSE.who24h * volume };
+      return { label: tr(g.label), hours: g.hours, volume: volume, dose: pm25 * volume, whoDose: DOSE.who24h * volume };
     }
     return { pm25: pm25, who: DOSE.who24h, ratio: pm25 / DOSE.who24h, primary: one(DOSE.primary), secondary: one(DOSE.secondary) };
   }
@@ -1021,7 +1045,7 @@
   }
 
   var api = {
-    TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, schoolDayDose: schoolDayDose, DOSE: DOSE,
+    TZ: TZ, setLang: setLang, lang: function () { return LANG; }, categories: categories, dayName: dayName, forecastStatus: forecastStatus, windFrom: windFrom, schoolDayDose: schoolDayDose, DOSE: DOSE,
     risingFastest: risingFastest, unusualReadings: unusualReadings, toneFor: toneFor, hourKeyOf: hourKeyOf, locate: locate, validClosure: validClosure,
     closureCovers: closureCovers, officialStatus: officialStatus, activeClosures: activeClosures, areaLabel: areaLabel,
     isAllowedSource: isAllowedSource, windHistAt: windHistAt, backTrajectory: backTrajectory,

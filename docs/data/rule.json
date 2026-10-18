@@ -7,12 +7,15 @@
     "comparison": ">=",
     "timing": "immediate",
     "summary": "Schools in the affected area close immediately once the IPU reading reaches 200.",
-    "note": "The Education Minister's 15 Oct 2026 statement says schools close when the reading reaches ('mencecah') 200; some reports word it as 'exceeds 200'. The two differ only at exactly 200. This dashboard counts 200 itself as reaching the threshold."
+    "note": "The Education Minister's 15 Oct 2026 statement says schools close when the reading reaches ('mencecah') 200; some reports word it as 'exceeds 200'. The two differ only at exactly 200. This dashboard counts 200 itself as reaching the threshold.",
+    "summary_ms": "Sekolah di kawasan terjejas ditutup serta-merta sebaik sahaja bacaan IPU mencecah 200.",
+    "note_ms": "Kenyataan Menteri Pendidikan pada 15 Okt 2026 menyatakan sekolah ditutup apabila bacaan mencecah 200; sesetengah laporan menyebut 'melebihi 200'. Kedua-duanya hanya berbeza pada nilai tepat 200. Papan pemuka ini mengira 200 itu sendiri sebagai mencapai paras penutupan."
   },
   "outdoor": {
     "threshold": 100,
     "comparison": ">",
-    "summary": "All outdoor activities stop when the IPU is above 100."
+    "summary": "All outdoor activities stop when the IPU is above 100.",
+    "summary_ms": "Semua aktiviti luar dihentikan apabila IPU melebihi 100."
   },
   "how_applied": [
     "Official closure announcements come first: where Bernama has reported an announced closure covering the place and date, the site shows it as officially closed, whatever the IPU reading. The IPU check is then shown only for reference.",
@@ -28,7 +31,8 @@
     {
       "from": "2026-10-08",
       "to": "2026-10-14",
-      "summary": "Interim KPM rule: institutions closed from the next day where IPU exceeded 180, or where IPU exceeded 150 for three consecutive days. Replaced by the PTJK rule on 15 Oct 2026."
+      "summary": "Interim KPM rule: institutions closed from the next day where IPU exceeded 180, or where IPU exceeded 150 for three consecutive days. Replaced by the PTJK rule on 15 Oct 2026.",
+      "summary_ms": "Peraturan interim KPM: institusi ditutup mulai hari berikutnya jika IPU melebihi 180, atau jika IPU melebihi 150 selama tiga hari berturut-turut. Digantikan oleh peraturan PTJK pada 15 Okt 2026."
     }
   ],
   "stale_after_hours": 3,
@@ -94,5 +98,16 @@
       "date": "2025-10",
       "url": "https://www.kabinet.gov.my/storage/2025/10/SS-KPM-Bil.-3-2025-Kalendar-Akademik-2026-1.pdf"
     }
-  ]
+  ],
+  "name_ms": "Pelan Tindakan Jerebu Kebangsaan (PTJK), seperti yang digunakan untuk sekolah oleh Kementerian Pendidikan Malaysia (KPM)",
+  "how_applied_ms": [
+    "Pengumuman penutupan rasmi didahulukan: jika Bernama telah melaporkan penutupan yang diumumkan meliputi tempat dan tarikh itu, laman ini menunjukkannya sebagai ditutup secara rasmi, tanpa mengira bacaan IPU. Semakan IPU kemudiannya hanya ditunjukkan sebagai rujukan.",
+    "Bacaan yang digunakan: IPU setiap jam yang diterbitkan oleh APIMS JAS bagi stesen pemantauan rujukan (stesen terdekat yang mempunyai bacaan semasa).",
+    "Paras penutupan dicapai hari ini: bacaan terkini, atau mana-mana bacaan setiap jam lebih awal hari ini (waktu Malaysia), ialah 200 atau lebih.",
+    "Jika dicapai: papan pemuka menyatakan sekolah di kawasan terjejas mungkin ditutup esok. Penutupan PTJK berkuat kuasa serta-merta, jadi penutupan mungkin sudah terpakai hari ini.",
+    "Jika tidak dicapai: papan pemuka menyatakan paras penutupan belum dicapai pada bacaan terkini. Ini boleh berubah jika bacaan meningkat kemudian.",
+    "Hujung minggu dan cuti akhir persekolahan ditunjukkan sebagai hari 'tiada sekolah'. Cuti umum dan cuti khusus negeri tidak diambil kira.",
+    "Tiada jangkaan ditunjukkan apabila stesen rujukan tiada bacaan dari 3 jam lalu."
+  ],
+  "who_decides_ms": "Penutupan diputuskan dan diumumkan oleh KPM, kerajaan negeri dan jabatan pendidikan negeri (JPN) serta Pejabat Pendidikan Daerah (PPD). Laman ini menunjukkan penutupan yang diumumkan hanya seperti yang dilaporkan oleh Bernama, disemak setiap jam dari 6 pagi hingga 7 malam, dan selain itu membuat jangkaan daripada peraturan IPU. Sejak 10 Okt 2026, Pengarah Pendidikan Negeri mengumumkan status sekolah setiap hari berdasarkan bacaan JAS."
 }

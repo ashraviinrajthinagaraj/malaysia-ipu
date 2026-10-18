@@ -21,47 +21,48 @@
 
   <header class="top" aria-labelledby="site-title">
     <div class="top-tools">
-      <button id="theme-btn" type="button" class="theme-switch" aria-pressed="false" title="Switch neon dark mode on or off">
+      <button id="lang-btn" type="button" class="lang-switch" lang="ms" title="Tukar ke Bahasa Melayu">BM</button>
+      <button id="theme-btn" type="button" class="theme-switch" aria-pressed="false" title="Switch neon dark mode on or off" data-t-attr="title">
         <span class="knob" aria-hidden="true"></span><span class="theme-label">Neon</span>
       </button>
-      <button id="a11y-btn" type="button" class="a11y-btn" aria-expanded="false" aria-controls="a11y-panel" aria-label="Accessibility options" title="Accessibility options">
+      <button id="a11y-btn" type="button" class="a11y-btn" aria-expanded="false" aria-controls="a11y-panel" aria-label="Accessibility options" title="Accessibility options" data-t-attr="aria-label title">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="6.6" r="1.6" fill="currentColor"/><path d="M6.8 9.4c1.7.5 3.4.7 5.2.7s3.5-.2 5.2-.7M12 10.1v3.6m0 0-2.4 5m2.4-5 2.4 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <div id="a11y-panel" class="a11y-panel" role="dialog" aria-label="Accessibility options" hidden>
-        <h2 class="a11y-title">Accessibility</h2>
-        <label class="a11y-opt"><input type="checkbox" id="a11y-sound"><span><b>Hear the haze.</b> Adds a Listen button to every 24-hour chart. Each hour plays as a tone: higher pitch means worse air, a soft buzz means Unhealthy (above 100) and a harsh buzz means 200 or above.</span></label>
-        <button type="button" id="a11y-sample" class="text-btn">Play sample tones</button>
+      <div id="a11y-panel" class="a11y-panel" role="dialog" aria-label="Accessibility options" data-t-attr="aria-label" hidden>
+        <h2 class="a11y-title" data-t>Accessibility</h2>
+        <label class="a11y-opt"><input type="checkbox" id="a11y-sound"><span data-t><b>Hear the haze.</b> Adds a Listen button to every 24-hour chart. Each hour plays as a tone: higher pitch means worse air, a soft buzz means Unhealthy (above 100) and a harsh buzz means 200 or above.</span></label>
+        <button type="button" id="a11y-sample" class="text-btn" data-t>Play sample tones</button>
         <p id="a11y-sample-now" class="small muted" aria-hidden="true"></p>
-        <button type="button" id="a11y-close" class="text-btn">Close</button>
+        <button type="button" id="a11y-close" class="text-btn" data-t>Close</button>
       </div>
     </div>
     <div class="brand">
       <h1 id="site-title">IPU Malaysia</h1>
-      <p class="tagline">Official hourly haze readings for every DOE station, and whether schools near you may close.</p>
+      <p class="tagline" data-t>Official hourly haze readings for every DOE station, and whether schools near you may close.</p>
     </div>
     <div id="status" class="status" aria-live="polite"><span class="live-dot"></span><span>Loading readings…</span></div>
     <div class="search" role="search">
-      <label for="q" class="visually-hidden">Search a state, town, school or monitoring station</label>
+      <label for="q" class="visually-hidden" data-t>Search a state, town, school or monitoring station</label>
       <div class="search-field">
         <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <input id="q" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
-               placeholder="Search a town or school"
+               placeholder="Search a town or school" data-t-attr="placeholder"
                aria-controls="results" aria-describedby="search-note">
-        <button id="places-btn" type="button" class="search-go">Search</button>
+        <button id="places-btn" type="button" class="search-go" data-t>Search</button>
       </div>
-      <button id="loc-btn" type="button" class="locate" title="Use my location" aria-label="Use my location">
+      <button id="loc-btn" type="button" class="locate" title="Use my location" aria-label="Use my location" data-t-attr="title aria-label">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
-      <div id="results" class="results" role="listbox" aria-label="Search results"></div>
+      <div id="results" class="results" role="listbox" aria-label="Search results" data-t-attr="aria-label"></div>
       <p id="search-note" class="search-note"></p>
     </div>
   </header>
 
   <div class="map-wrap">
-    <div id="map" class="map" role="region" aria-label="Map of monitoring stations in Malaysia"></div>
+    <div id="map" class="map" role="region" aria-label="Map of monitoring stations in Malaysia" data-t-attr="aria-label"></div>
     <div class="map-chips">
       <button id="src-btn" type="button" class="map-chip alt" aria-pressed="false">Where the haze comes from</button>
-      <button id="map-home" type="button" class="map-chip" hidden>Show all of Malaysia</button>
+      <button id="map-home" type="button" class="map-chip" hidden data-t>Show all of Malaysia</button>
     </div>
     <div class="map-legend" id="map-legend" aria-hidden="true"></div>
     <div id="map-fallback" class="map-fallback" hidden></div>
@@ -71,13 +72,13 @@
     <section id="selection" class="selection" hidden aria-live="polite" aria-labelledby="sel-title">
       <div class="sel-head">
         <h2 id="sel-title">Selected location</h2>
-        <button id="sel-close" type="button" class="text-btn">Close</button>
+        <button id="sel-close" type="button" class="text-btn" data-t>Close</button>
       </div>
       <div class="sel-actions">
         <button id="share-btn" type="button" class="act-btn" aria-expanded="false" aria-controls="share-panel">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="19" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m8.3 10.8 7.4-4.4M8.3 13.2l7.4 4.4" stroke="currentColor" stroke-width="1.8"/></svg>Share</button>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="19" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m8.3 10.8 7.4-4.4M8.3 13.2l7.4 4.4" stroke="currentColor" stroke-width="1.8"/></svg><span data-t>Share</span></button>
         <button id="lobby-btn" type="button" class="act-btn">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Lobby screen</button>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span data-t>Lobby screen</span></button>
       </div>
       <div id="share-panel" class="share-panel" hidden></div>
       <div id="loc-info"></div>
@@ -89,81 +90,83 @@
     </section>
 
     <section id="overview" aria-labelledby="overview-h">
-      <h2 id="overview-h">Malaysia right now</h2>
+      <h2 id="overview-h" data-t>Malaysia right now</h2>
       <div id="closures" class="closures"></div>
       <div id="summary" class="summary"></div>
       <div id="dist" class="dist"></div>
-      <h3>Highest reading in each state</h3>
+      <h3 data-t>Highest reading in each state</h3>
       <div id="state-bars" class="state-bars"></div>
       <div id="watch" class="watch"></div>
       <div id="outlook" class="outlook"></div>
     </section>
 
     <section id="borders-sec" aria-labelledby="borders-h">
-      <h2 id="borders-h">Across the border</h2>
+      <h2 id="borders-h" data-t>Across the border</h2>
       <div id="borders-body"></div>
     </section>
 
     <section id="sim-sec" aria-labelledby="sim-h">
-      <h2 id="sim-h">What if the rule were different?</h2>
+      <h2 id="sim-h" data-t>What if the rule were different?</h2>
       <div id="sim-body"></div>
     </section>
 
     <section id="sources-sec" aria-labelledby="sources-h">
-      <h2 id="sources-h">Where the haze comes from</h2>
+      <h2 id="sources-h" data-t>Where the haze comes from</h2>
       <div id="sources-body"></div>
     </section>
 
     <section id="stations" aria-labelledby="stations-h">
-      <h2 id="stations-h">All stations</h2>
+      <h2 id="stations-h" data-t>All stations</h2>
       <div class="filters">
-        <select id="f-state" aria-label="State"><option value="">All states</option></select>
-        <select id="f-sort" aria-label="Sort">
-          <option value="state">By state</option>
-          <option value="api-desc">Highest IPU first</option>
-          <option value="api-asc">Lowest IPU first</option>
-          <option value="name">By name</option>
+        <select id="f-state" aria-label="State" data-t-attr="aria-label"><option value="">All states</option></select>
+        <select id="f-sort" aria-label="Sort" data-t-attr="aria-label">
+          <option value="state" data-t>By state</option>
+          <option value="api-desc" data-t>Highest IPU first</option>
+          <option value="api-asc" data-t>Lowest IPU first</option>
+          <option value="name" data-t>By name</option>
         </select>
-        <input id="f-text" type="search" placeholder="Filter stations" aria-label="Filter stations">
+        <input id="f-text" type="search" placeholder="Filter stations" aria-label="Filter stations" data-t-attr="placeholder aria-label">
       </div>
       <div class="table-wrap">
         <table id="station-table">
-          <thead><tr><th>Station</th><th class="num">IPU</th><th class="hide-sm">Category</th><th>Time</th></tr></thead>
+          <thead><tr><th data-t>Station</th><th class="num">IPU</th><th class="hide-sm" data-t>Category</th><th data-t>Time</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </section>
 
     <section id="history" aria-labelledby="history-h">
-      <h2 id="history-h">Fine particles since 2017</h2>
+      <h2 id="history-h" data-t>Fine particles since 2017</h2>
       <div id="dosm"></div>
     </section>
 
     <section id="explainer" aria-labelledby="explainer-h">
-      <h2 id="explainer-h">How the IPU works</h2>
+      <h2 id="explainer-h" data-t>How the IPU works</h2>
       <div id="explainer-body"></div>
     </section>
 
     <section id="about" aria-labelledby="about-h">
-      <h2 id="about-h">How this works</h2>
+      <h2 id="about-h" data-t>How this works</h2>
       <div id="about-body"></div>
     </section>
 
     <footer class="foot">
-      <p>Readings: Department of Environment Malaysia, <a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">APIMS</a>. History: <a href="https://open.dosm.gov.my/data-catalogue/air_pollution" rel="noopener">OpenDOSM</a>. Map: <a href="https://openfreemap.org" rel="noopener">OpenFreeMap</a>, <a href="https://openmaptiles.org" rel="noopener">© OpenMapTiles</a>, <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a>; map engine MapLibre GL JS. Place search: Nominatim (OpenStreetMap). Forecast estimate: CAMS (Copernicus Atmosphere Monitoring Service) via <a href="https://open-meteo.com" rel="noopener">Open-Meteo</a>. Fire hotspots: <a href="https://firms.modaps.eosdis.nasa.gov/" rel="noopener">NASA FIRMS</a>. Official closure announcements: <a href="https://www.bernama.com" rel="noopener">Bernama</a> reports. District boundaries: <a href="https://data.gov.my" rel="noopener">data.gov.my</a>. Wind: Open-Meteo.</p>
-      <p>An independent dashboard, not an official government service. School-status predictions are not closure announcements.</p>
+      <p data-t>Readings: Department of Environment Malaysia, <a href="https://eqms.doe.gov.my/APIMS/main" rel="noopener">APIMS</a>. History: <a href="https://open.dosm.gov.my/data-catalogue/air_pollution" rel="noopener">OpenDOSM</a>. Map: <a href="https://openfreemap.org" rel="noopener">OpenFreeMap</a>, <a href="https://openmaptiles.org" rel="noopener">© OpenMapTiles</a>, <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a>; map engine MapLibre GL JS. Place search: Nominatim (OpenStreetMap). Forecast estimate: CAMS (Copernicus Atmosphere Monitoring Service) via <a href="https://open-meteo.com" rel="noopener">Open-Meteo</a>. Fire hotspots: <a href="https://firms.modaps.eosdis.nasa.gov/" rel="noopener">NASA FIRMS</a>. Official closure announcements: <a href="https://www.bernama.com" rel="noopener">Bernama</a> reports. District boundaries: <a href="https://data.gov.my" rel="noopener">data.gov.my</a>. Wind: Open-Meteo.</p>
+      <p data-t>An independent dashboard, not an official government service. School-status predictions are not closure announcements.</p>
       <p class="credit">Created by Ashraviinraj Thinagaraj.</p>
     </footer>
   </main>
 </div>
-<div id="lobby" class="lobby" hidden role="dialog" aria-label="Lobby screen">
-  <div class="lobby-top"><span class="lobby-brand">IPU Malaysia</span><span id="lobby-clock" class="lobby-clock"></span><button id="lobby-exit" type="button" class="lobby-exit">Exit</button></div>
+<div id="lobby" class="lobby" hidden role="dialog" aria-label="Lobby screen" data-t-attr="aria-label">
+  <div class="lobby-top"><span class="lobby-brand">IPU Malaysia</span><span id="lobby-clock" class="lobby-clock"></span><button id="lobby-exit" type="button" class="lobby-exit" data-t>Exit</button></div>
   <div id="lobby-body" class="lobby-body" aria-live="polite"></div>
 </div>
 <div id="tip" class="tip" role="tooltip" hidden></div>
 <p id="a11y-live" class="visually-hidden" aria-live="polite"></p>
 <script src="vendor/maplibre/maplibre-gl.js"></script>
 <script src="logic.js"></script>
+<script src="i18n.js"></script>
+<script src="i18n.ms.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -1,7 +1,9 @@
 {
   "schema": 1,
   "source_policy": {
-    "allowed_domains": ["bernama.com"],
+    "allowed_domains": [
+      "bernama.com"
+    ],
     "summary": "Official school closure announcements are added only from Bernama reports. Every entry links to the Bernama article it comes from."
   },
   "checked_at": "2026-10-18T16:05:00+08:00",
@@ -9,17 +11,28 @@
   "closures": [
     {
       "id": "johor-2026-10-19",
-      "area": { "states": ["Johor"] },
+      "area": {
+        "states": [
+          "Johor"
+        ]
+      },
       "from": "2026-10-19",
       "to": "2026-10-23",
       "dates_note": "Five more days starting Monday 19 October, which ends on Friday 23 October. Reopening is reviewed before then.",
+      "dates_note_ms": "Lima hari lagi bermula Isnin 19 Oktober, berakhir pada Jumaat 23 Oktober. Pembukaan semula akan dikaji sebelum itu.",
       "covers": "All schools and educational institutions throughout Johor.",
+      "covers_ms": "Semua sekolah dan institusi pendidikan di seluruh Johor.",
       "not_covered": "Private educational institutions and childcare centres decide for themselves whether to open; those that open must operate indoors with face masks.",
+      "not_covered_ms": "Institusi pendidikan swasta (IPS) dan pusat jagaan kanak-kanak membuat keputusan sendiri sama ada untuk dibuka; yang dibuka mesti beroperasi di ruang tertutup dengan pemakaian pelitup muka.",
       "learning": "Home-based teaching and learning (PdPR) continues.",
+      "learning_ms": "Pengajaran dan pembelajaran di rumah (PdPR) diteruskan.",
       "exceptions": "Limited exemptions may be considered for students sitting exams or assessments, coordinated with the Johor State Education Department (JPNJ).",
+      "exceptions_ms": "Pengecualian terhad boleh dipertimbangkan bagi murid yang menduduki peperiksaan atau pentaksiran, diselaraskan dengan Jabatan Pendidikan Negeri Johor (JPNJ).",
       "announced_by": "Dr Muhammad Naqib Md Ghazali, Johor Education and Information Committee chairman, after a meeting of the Johor Haze Management Coordination Committee",
+      "announced_by_ms": "Dr Muhammad Naqib Md Ghazali, Pengerusi Jawatankuasa Pendidikan dan Penerangan Negeri Johor, selepas mesyuarat penyelarasan pengurusan jerebu negeri",
       "announced_on": "2026-10-17",
       "previous": "Extends the closure of all Johor schools from 12 to 16 October.",
+      "previous_ms": "Melanjutkan penutupan semua sekolah di Johor dari 12 hingga 16 Oktober.",
       "sources": [
         {
           "title": "Haze: Schools, educational institutions in Johor to close for another five days from Monday",

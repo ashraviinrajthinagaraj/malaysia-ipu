@@ -61,6 +61,11 @@ school closures correctly. Follow it exactly.
      `dates_note`.
    - **Same closure reported again:** do not add a duplicate; you may add the
      new Bernama link to `sources`.
+   - **Bahasa Melayu text:** for every text field you write (`covers`, `not_covered`,
+     `learning`, `exceptions`, `dates_note`, `announced_by`, `previous`), also write the
+     same text in Bahasa Melayu in a field with `_ms` added (`covers_ms`, ...), based on
+     the Bernama BM article when there is one. The site shows these to visitors who use
+     Bahasa Melayu. Keep both versions saying the same thing; never add facts to one only.
    - Always set `checked_at` to the current Malaysia time
      (e.g. `2026-10-18T19:00:00+08:00`). Set `updated_at` and the entry's
      `added_at` when closures change.
@@ -103,6 +108,7 @@ school closures correctly. Follow it exactly.
   "covers": "All schools and educational institutions throughout Johor.",
   "not_covered": "Private educational institutions and childcare centres decide for themselves.",
   "learning": "Home-based teaching and learning (PdPR) continues.",
+  "learning_ms": "Pengajaran dan pembelajaran di rumah (PdPR) diteruskan.",
   "exceptions": "Limited exemptions for exam candidates, coordinated with JPNJ.",
   "announced_by": "Name, role, body",
   "announced_on": "2026-10-17",

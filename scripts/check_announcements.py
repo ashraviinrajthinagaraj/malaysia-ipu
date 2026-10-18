@@ -67,6 +67,9 @@ def check(data, bounds):
         for k in ("covers", "announced_by"):
             if not str(c.get(k) or "").strip():
                 errors.append(f"{where}: missing {k}")
+        for k, v in c.items():
+            if k.endswith("_ms") and not isinstance(v, str):
+                errors.append(f"{where}: {k} (Bahasa Melayu text) must be text")
         if "until_further_notice" in c and not isinstance(c["until_further_notice"], bool):
             errors.append(f"{where}: until_further_notice must be true or false")
         if c.get("until_further_notice") and f and t and (t - f).days > 31:

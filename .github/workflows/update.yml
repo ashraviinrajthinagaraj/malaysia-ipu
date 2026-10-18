@@ -39,7 +39,7 @@ jobs:
         if: github.event_name != 'schedule'
         run: |
           python3 -m unittest discover -s tests -v
-          node --test tests/logic.test.js
+          node --test tests/logic.test.js tests/i18n.test.js
 
       - name: Read the latest readings from DOE APIMS
         id: apims

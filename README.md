@@ -131,6 +131,14 @@ These two features are kept apart from the official data and are labelled on the
 - **Calendar feeds:** `scripts/build_calendars.py` turns the Bernama-only closure list into one subscribable calendar per state plus one for all states (`docs/data/cal/*.ics`, rebuilt on every run, changed only when the announcements change). The closures section has Subscribe, Google Calendar, Outlook and download buttons. Feed address: `https://ashraviinrajthinagaraj.github.io/malaysia-ipu/data/cal/johor.ics` (other states: see `data/cal/index.json`).
 - **Smoke on the way (forecast estimate):** `fetch_sources.py` also saves the next 48 hours of forecast wind about 800 m up (`docs/data/wind_forecast.json`, refreshed every 3 hours). The page groups today's fire hotspots into areas (half-degree cells with 3 or more hotspots), follows the air over each area forward through the forecast wind, and reports when it first passes within 50 km of a place or station. Shown on the station or place card, per state in "Where the haze comes from", and as dashed paths on the map. It says where air over fire areas is heading, not how much smoke it carries or what the IPU will be.
 
+## Bahasa Melayu
+
+The page is in English or Bahasa Melayu (the BM/EN button at the top). The choice is remembered on the device, and links shared in Bahasa Melayu carry `lang=ms`, so they open in Bahasa Melayu. A browser set to Malay opens in Bahasa Melayu the first time.
+
+- All page text is written in English in `app.js`, `logic.js` and `index.html` and passed through `i18()` (or `tr()` in `logic.js`). `docs/i18n.ms.js` holds the Bahasa Melayu text for each English string. To change a translation, edit it there; to add new text, wrap it in `i18("...")` and add the translation. `tests/i18n.test.js` fails if any wrapped text has no translation.
+- Text from the data files has its own Bahasa Melayu fields: `*_ms` fields in `rule.json` and in each closure in `announcements.json` (the scheduled Bernama check writes these from the Bernama BM article), and `text_ms`/`basis_ms` in `rule_reality.json`.
+- Station, district and state names, and Bernama headlines, are shown as published. The calendar feeds are in English.
+
 ## Files
 
 ```
@@ -139,6 +147,7 @@ docs/                    the website (published to GitHub Pages)
   vendor/maplibre/       map engine (MapLibre GL JS 4.7.1)
   logic.js               categories, matching, prediction, search (pure functions, tested)
   app.js                 page behaviour, charts, search, hourly re-read of the data
+  i18n.js, i18n.ms.js    language switch and the Bahasa Melayu text
   data/latest.json       current readings (written by the hourly job)
   data/rule.json         closure rule, weekends, holidays, sources
   data/schools.json      KPM school list, once added
@@ -154,7 +163,7 @@ scripts/
   build_borders.py       finds neighbouring districts in boundaries.json (run once)
   build_calendars.py     builds the closure calendar feeds (every run)
 data_sources/schools/    put the KPM school list here
-tests/                   python3 -m unittest discover -s tests ; node --test tests/logic.test.js
+tests/                   python3 -m unittest discover -s tests ; node --test tests/logic.test.js tests/i18n.test.js
 .github/workflows/update.yml   the hourly job
 ```
 

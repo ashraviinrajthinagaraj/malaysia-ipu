@@ -103,11 +103,12 @@ def locate(lon, lat, bounds):
 
 
 def area_stations(c, stations, bounds):
-    """(stations, basis text) for the closure's area."""
+    """(stations, basis text, basis text in Bahasa Melayu) for the closure's area."""
     area = c.get("area") or {}
     if area.get("states"):
         want = {norm(s) for s in area["states"]}
-        return [s for s in stations if norm(s.get("state")) in want], "all DOE stations in " + ", ".join(area["states"])
+        return [s for s in stations if norm(s.get("state")) in want], "all DOE stations in " + ", ".join(area["states"]), \
+            "semua stesen JAS di " + ", ".join(area["states"])
     if area.get("districts") and area.get("state"):
         want = {norm(d) for d in area["districts"]}
         inside = []
@@ -118,7 +119,7 @@ def area_stations(c, stations, bounds):
             if st and norm(st) == norm(area["state"]) and norm(di) in want:
                 inside.append(s)
         if inside:
-            return inside, "DOE stations inside " + ", ".join(area["districts"])
+            return inside, "DOE stations inside " + ", ".join(area["districts"]), "stesen JAS di dalam " + ", ".join(area["districts"])
         # no station inside: nearest station to each district's centre
         chosen = {}
         for d in bounds.get("districts", []):
@@ -128,8 +129,9 @@ def area_stations(c, stations, bounds):
                            key=lambda s: (s["lon"] - cx) ** 2 + (s["lat"] - cy) ** 2, default=None)
                 if best:
                     chosen[best["id"]] = best
-        return list(chosen.values()), "no DOE station inside " + ", ".join(area["districts"]) + "; the nearest station is used"
-    return [], "listed schools only; no area to compare"
+        return (list(chosen.values()), "no DOE station inside " + ", ".join(area["districts"]) + "; the nearest station is used",
+                "tiada stesen JAS di dalam " + ", ".join(area["districts"]) + "; stesen terdekat digunakan")
+    return [], "listed schools only; no area to compare", "sekolah tersenarai sahaja; tiada kawasan untuk dibandingkan"
 
 
 # ---------------------------------------------------------------- data
@@ -228,20 +230,43 @@ def join_names(parts):
     return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
+WD_MS = {"Mon": "Isn", "Tue": "Sel", "Wed": "Rab", "Thu": "Kha", "Fri": "Jum", "Sat": "Sab", "Sun": "Ahd"}
+MON_MS = {"Jan": "Jan", "Feb": "Feb", "Mar": "Mac", "Apr": "Apr", "May": "Mei", "Jun": "Jun", "Jul": "Jul",
+          "Aug": "Ogo", "Sep": "Sep", "Oct": "Okt", "Nov": "Nov", "Dec": "Dis"}
+
+
+def day_name_ms(key):
+    wd, d, mon = day_name(key).split(" ")
+    return f"{WD_MS.get(wd, wd)} {d} {MON_MS.get(mon, mon)}"
+
+
+def join_names_ms(parts):
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " dan " + parts[-1]
+
+
 def verdict(before24, before72):
+    """The comparison in English ("text") and Bahasa Melayu ("text_ms")."""
     if not before24["max"]:
-        return {"kind": "no_data", "text": "Not enough official readings from before the announcement to compare."}
+        return {"kind": "no_data", "text": "Not enough official readings from before the announcement to compare.",
+                "text_ms": "Tidak cukup bacaan rasmi sebelum pengumuman untuk dibandingkan."}
     n, total = len(before24["reached200"]), before24["stations"]
     if n == 0:
         txt = (f"No station in the area had reached {THRESHOLD} in the 24 hours before the announcement "
                f"(highest {before24['max']['api']} at {before24['max']['name']}).")
+        ms = (f"Tiada stesen di kawasan itu yang mencecah {THRESHOLD} dalam 24 jam sebelum pengumuman "
+              f"(tertinggi {before24['max']['api']} di {before24['max']['name']}).")
         if before72["reached200"]:
-            parts = [f"{r['name']} ({r['api']} on {day_name(r['time'])})" for r in before72["reached200"][:3]]
-            txt += " Earlier in the 3 days before, " + join_names(parts) + (" had" if len(parts) > 1 else " had") + f" reached {THRESHOLD}."
-        return {"kind": "beyond", "text": txt}
+            top = before72["reached200"][:3]
+            parts = [f"{r['name']} ({r['api']} on {day_name(r['time'])})" for r in top]
+            txt += " Earlier in the 3 days before, " + join_names(parts) + " had" + f" reached {THRESHOLD}."
+            parts_ms = [f"{r['name']} ({r['api']} pada {day_name_ms(r['time'])})" for r in top]
+            ms += " Lebih awal dalam tempoh 3 hari sebelumnya, " + join_names_ms(parts_ms) + f" telah mencecah {THRESHOLD}."
+        return {"kind": "beyond", "text": txt, "text_ms": ms}
     if n >= total:
-        return {"kind": "matches", "text": f"Every station in the area had reached {THRESHOLD} in the 24 hours before the announcement."}
-    return {"kind": "partly", "text": f"{n} of {total} stations in the area had reached {THRESHOLD} in the 24 hours before the announcement."}
+        return {"kind": "matches", "text": f"Every station in the area had reached {THRESHOLD} in the 24 hours before the announcement.",
+                "text_ms": f"Setiap stesen di kawasan itu telah mencecah {THRESHOLD} dalam 24 jam sebelum pengumuman."}
+    return {"kind": "partly", "text": f"{n} of {total} stations in the area had reached {THRESHOLD} in the 24 hours before the announcement.",
+            "text_ms": f"{n} daripada {total} stesen di kawasan itu telah mencecah {THRESHOLD} dalam 24 jam sebelum pengumuman."}
 
 
 def bernama_only(c):
@@ -289,9 +314,10 @@ def main():
             continue
         if now - announced > timedelta(days=LOOKBACK_DAYS):
             continue                                      # keep the stored result as it is
-        sts, basis = area_stations(c, stations, bounds)
+        sts, basis, basis_ms = area_stations(c, stations, bounds)
         if not sts:
-            results[c["id"]] = {"basis": basis, "announced_at": announced.isoformat(), "verdict": {"kind": "no_area", "text": basis}}
+            results[c["id"]] = {"basis": basis, "basis_ms": basis_ms, "announced_at": announced.isoformat(),
+                                "verdict": {"kind": "no_area", "text": basis, "text_ms": basis_ms}}
             continue
         ann_hour = announced.replace(minute=0, second=0)
         first_day = (announced - timedelta(days=2)).replace(hour=0, minute=0, second=0)
@@ -328,7 +354,7 @@ def main():
         merged.extend(old_days.values())
         merged.sort(key=lambda x: x["date"])
         results[c["id"]] = {
-            "basis": basis, "stations": [s["id"] for s in sts],
+            "basis": basis, "basis_ms": basis_ms, "stations": [s["id"] for s in sts],
             "announced_at": announced.isoformat(),
             "before24": before24, "before72": before72,
             "days": merged, "verdict": verdict(before24, before72),

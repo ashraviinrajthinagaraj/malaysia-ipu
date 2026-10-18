@@ -36,7 +36,7 @@
   var FIRE_MAX_AGE_MIN = 36 * 60;
   var REDUCE = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var S = { data: null, rule: null, dosm: null, forecast: null, sources: null, ann: null, bounds: null, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
+  var S = { data: null, rule: null, dosm: null, forecast: null, sources: null, ann: null, bounds: null, rr: null, windHist: null, windHistLoading: null, trace: null, schools: null, schoolsMeta: null, schoolsLoading: null,
             sel: null, lastPlaceQuery: 0, firstPaint: true };
   var M = { map: null, styleReady: false, introDone: false, markers: {}, pin: null, km: null,
             fallbackUsed: false, tileOk: false, tileErr: 0, pending: null, link: null, refId: null, homeZoom: 5, sourcesOn: false,
@@ -420,6 +420,109 @@
     $("map-legend").innerHTML = html;
   }
 
+  // ================================================================ rule vs reality
+
+  var RR_LABEL = { beyond: "Went further than the national rule", matches: "In line with the national rule",
+                   partly: "Partly in line with the national rule", no_data: "Not enough data to compare", no_area: "Not compared" };
+
+  function rrFor(c) { return S.rr && S.rr.closures ? S.rr.closures[c.id] || null : null; }
+
+  function rrLine(c, withLink) {
+    var r = rrFor(c);
+    if (!r || !r.verdict) return "";
+    var v = r.verdict, part = r.before24 && !r.before24.complete && r.before24.max;
+    return '<p class="rr-line"><span class="rr-chip ' + esc(v.kind) + '">' + esc(RR_LABEL[v.kind] || "Rule vs reality") + "</span>" + esc(v.text) +
+      (part ? " Based on " + r.before24.hours + " of 24 hours of readings." : "") +
+      (withLink ? ' <a href="#closures" class="rr-link">See the day-by-day chart</a>' : "") + "</p>";
+  }
+
+  function rrBlock(c) {
+    var r = rrFor(c);
+    if (!r) return '<p class="off-none">Rule vs reality: the comparison with official readings is added by the next hourly update.</p>';
+    return '<div class="rr"><h4>Rule vs reality</h4>' + rrLine(c, false) +
+      (r.days && r.days.length ? '<div class="chart rr-chart" data-rr="' + esc(c.id) + '"></div>' : "") +
+      '<p class="small muted">Compared with official DOE readings at ' + esc(r.basis) + " (" + (r.stations ? r.stations.length : 0) + " station" + (r.stations && r.stations.length === 1 ? "" : "s") +
+      "). The national rule closes schools in the affected area once the IPU reaches " + ((S.rr.rule && S.rr.rule.threshold) || 200) +
+      ". States can also decide on other grounds, such as health data or the weather outlook.</p></div>";
+  }
+
+  function drawRR(el) {
+    var id = el.getAttribute("data-rr"), r = S.rr && S.rr.closures[id];
+    var c = ((S.ann && S.ann.closures) || []).filter(function (x) { return x.id === id; })[0];
+    if (!r || !r.days || !r.days.length || !c) return;
+    var days = r.days, thr = (S.rr.rule && S.rr.rule.threshold) || 200;
+    var W2 = Math.max(280, el.clientWidth || 400), H = 200, padL = 32, padR = 8, padT = 22, padB = 36;
+    var n = days.length, step = (W2 - padL - padR) / n, bw = Math.min(34, step * 0.62);
+    var ymax = Math.ceil(Math.max(thr + 30, Math.max.apply(null, days.map(function (d) { return d.max.api; }))) / 50) * 50;
+    var sy = function (v) { return H - padB - (v / ymax) * (H - padT - padB); };
+    var cx = function (i) { return padL + step * i + step / 2; };
+    var svg = svgEl("svg", { viewBox: "0 0 " + W2 + " " + H, width: W2, height: H, role: "img",
+      "aria-label": "Highest official IPU each day in the closed area, with the closure days marked" });
+    var defs = svgEl("defs", {}), pat = svgEl("pattern", { id: "rrhatch-" + id, width: 8, height: 8, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
+    pat.appendChild(svgEl("rect", { width: 8, height: 8, fill: T().closedLine, opacity: 0.06 }));
+    pat.appendChild(svgEl("line", { x1: 0, y1: 0, x2: 0, y2: 8, stroke: T().closedLine, "stroke-width": 2, opacity: 0.28 }));
+    defs.appendChild(pat); svg.appendChild(defs);
+    // closure days background
+    days.forEach(function (d, i) {
+      if (d.closed) svg.appendChild(svgEl("rect", { x: padL + step * i, y: padT - 14, width: step, height: H - padB - padT + 14, fill: "url(#rrhatch-" + id + ")" }));
+    });
+    var firstClosed = days.map(function (d) { return d.closed; }).indexOf(true);
+    if (firstClosed >= 0) svg.appendChild(svgEl("text", { x: padL + step * firstClosed + 4, y: padT - 4, "font-size": 10.5, fill: T().closedLine, "font-weight": 700 }, "Schools closed"));
+    for (var g = 0; g <= ymax; g += 50) {
+      svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(g), y2: sy(g), stroke: T().grid }));
+      svg.appendChild(svgEl("text", { x: padL - 6, y: sy(g) + 4, "font-size": 11, fill: T().axis, "text-anchor": "end" }, String(g)));
+    }
+    svg.appendChild(svgEl("line", { x1: padL, x2: W2 - padR, y1: sy(thr), y2: sy(thr), stroke: T().closure, "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+    days.forEach(function (d, i) {
+      var k = cat(d.max.api), h = H - padB - sy(d.max.api), x = cx(i) - bw / 2;
+      var bar = svgEl("path", { d: "M" + x + " " + (H - padB) + " V" + (sy(d.max.api) + 4) + " Q" + x + " " + sy(d.max.api) + " " + (x + 4) + " " + sy(d.max.api) +
+        " H" + (x + bw - 4) + " Q" + (x + bw) + " " + sy(d.max.api) + " " + (x + bw) + " " + (sy(d.max.api) + 4) + " V" + (H - padB) + " Z",
+        fill: k.color, opacity: d.partial_day ? 0.5 : 1 });
+      svg.appendChild(bar);
+      svg.appendChild(svgEl("text", { x: cx(i), y: sy(d.max.api) - 5, "font-size": 11, fill: T().ink, "text-anchor": "middle", "font-weight": 700,
+        stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, String(d.max.api)));
+      var dk = d.date, wd = L.weekdayOfKey(dk), dn = String(Number(dk.slice(8, 10)));
+      svg.appendChild(svgEl("text", { x: cx(i), y: H - padB + 14, "font-size": 10.5, fill: T().axis, "text-anchor": "middle" }, wd));
+      svg.appendChild(svgEl("text", { x: cx(i), y: H - padB + 27, "font-size": 10.5, fill: T().axis, "text-anchor": "middle" }, dn));
+      var hit = svgEl("rect", { x: padL + step * i, y: padT, width: step, height: H - padT - padB, fill: "transparent" });
+      hit.addEventListener("mousemove", function (ev) {
+        showTip("<b>" + esc(L.fmtDayKey(dk)) + "</b><br>Highest " + d.max.api + " (" + esc(k.label) + ") at " + esc(d.max.name) + ", " + esc(d.max.time.slice(11)) +
+          "<br>" + d.reached200 + " station" + (d.reached200 === 1 ? "" : "s") + " at " + thr + " or more" + (d.closed ? "<br>Schools officially closed" : "") +
+          (d.partial_day ? "<br>Day not complete (" + d.hours + " hours)" : ""), ev.clientX, ev.clientY);
+      });
+      hit.addEventListener("mouseleave", hideTip);
+      svg.appendChild(hit);
+    });
+    // announcement marker
+    var at = L.parseTime(r.announced_at);
+    if (at) {
+      var ak = L.mytDateKey(at), ai = days.map(function (d) { return d.date; }).indexOf(ak);
+      if (ai >= 0) {
+        var hr = Number(L.fmtTime(at).slice(0, 2)) + Number(L.fmtTime(at).slice(3)) / 60;
+        var ax = padL + step * ai + step * (hr / 24);
+        svg.appendChild(svgEl("line", { x1: ax, x2: ax, y1: padT - 14, y2: H - padB, stroke: T().ink, "stroke-width": 1.2, "stroke-dasharray": "2 3" }));
+        svg.appendChild(svgEl("text", { x: ax - 4, y: padT - 4, "font-size": 10.5, fill: T().ink, "text-anchor": "end", stroke: T().halo, "stroke-width": 3, "paint-order": "stroke" }, "Announced"));
+      }
+    }
+    el.innerHTML = "";
+    el.appendChild(svg);
+    var leg = document.createElement("div");
+    leg.className = "legend-row";
+    leg.innerHTML = '<span><i class="rr-key-closed"></i>Schools officially closed</span><span><i class="rr-key-line"></i>National closure level (' + thr + ')</span>' +
+      (days.some(function (d) { return d.partial_day; }) ? '<span><i class="rr-key-faded"></i>Day not complete</span>' : "");
+    el.appendChild(leg);
+    var det = document.createElement("details");
+    det.className = "inline-details";
+    det.innerHTML = "<summary>Show as a table</summary><div class='table-wrap'><table class='mini'><thead><tr><th>Day</th><th class='num'>Highest</th><th>Station</th><th class='num'>At 200+</th><th>Schools</th></tr></thead><tbody>" +
+      days.map(function (d) {
+        return "<tr><td>" + esc(dayShort(d.date)) + (d.partial_day ? " (so far)" : "") + "</td><td class='num'>" + d.max.api + "</td><td>" + esc(d.max.name) + "</td><td class='num'>" + d.reached200 +
+          "</td><td>" + (d.closed ? "Officially closed" : "Open or weekend") + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+    el.appendChild(det);
+  }
+
+  function drawAllRR() { Array.prototype.forEach.call(document.querySelectorAll(".rr-chart"), drawRR); }
+
   // ================================================================ official closures: overview and map
 
   function renderClosures() {
@@ -434,12 +537,21 @@
         var started = c.from <= L.mytDateKey(n);
         html += '<div class="closure-item"><p class="ci-head"><span class="off-chip">Official</span><b>' + esc(L.areaLabel(c)) + "</b>: schools " +
           (started ? "closed " + esc(untilText(c)) : "close " + (c.until_further_notice ? "from " + esc(dayShort(c.from)) + " until further notice" : esc(rangeText(c.from, c.to)))) + "</p>" +
-          '<p class="pred-detail">' + esc(c.covers) + (c.learning ? " " + esc(c.learning) : "") + "</p>" + sourceLine(c) + "</div>";
+          '<p class="pred-detail">' + esc(c.covers) + (c.learning ? " " + esc(c.learning) : "") + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
       });
-      html += '<p class="small muted">From Bernama reports only, checked twice a day at about 4 pm and 7 pm (last checked ' + esc(checkedText()) + "). Confirm with your school or JPN.</p>";
+      html += '<p class="small muted">From Bernama reports only, checked at about 6 am, 4 pm and 7 pm daily (last checked ' + esc(checkedText()) + "). Confirm with your school or JPN.</p>";
+    }
+    var tk = L.mytDateKey(n), recent = ((S.ann && S.ann.closures) || []).filter(function (c) {
+      return L.validClosure(c, S.ann.source_policy) && c.to < tk && c.to >= L.addDaysKey(tk, -14);
+    });
+    if (recent.length) {
+      html += '<h3 class="rr-past-h">Recently ended</h3>' + recent.map(function (c) {
+        return '<div class="closure-item ended"><p class="ci-head"><b>' + esc(L.areaLabel(c)) + "</b>: schools were closed " + esc(rangeText(c.from, c.to)) + "</p>" + sourceLine(c) + rrBlock(c) + "</div>";
+      }).join("");
     }
     if (annStale()) html += '<p class="note">Announcements were last checked more than a day ago, so a newer announcement may be missing.</p>';
     box.innerHTML = html;
+    drawAllRR();
   }
 
   /* Districts covered by a closure today or tomorrow, as map features. */
@@ -1264,13 +1376,13 @@
         esc(ufn ? "from " + dayShort(o.today ? o.today.from : c.from) + " until further notice" : rangeText(o.today ? o.today.from : c.from, last)) + "</div>" +
         '<p class="pred-detail"><b>' + (o.today ? "Schools here are closed today and tomorrow" : "Schools here are closed from tomorrow") + ".</b> " +
         "An official closure covers " + esc(L.areaLabel(c)) + " " + esc(ufn ? "until further notice" : "until " + dayShort(last)) + "." + (last !== c.to && !ufn ? " It includes a later extension." : "") + "</p>" +
-        closureDetails(c) + staleNote;
+        closureDetails(c) + rrLine(c, true) + staleNote;
       return { closed: true, any: true, html: html };
     }
     if (o.today) {
       html = '<div class="pred-status official_info"><span class="off-chip">Official</span>Announced closure ends today</div>' +
         '<p class="pred-detail">The official closure for ' + esc(L.areaLabel(o.today)) + " (" + esc(rangeText(o.today.from, o.today.to)) + ") ends today. " +
-        "No extension had been reported by Bernama when announcements were last checked (" + esc(checkedText()) + "). The IPU check below is for tomorrow.</p>" + sourceLine(o.today) + staleNote;
+        "No extension had been reported by Bernama when announcements were last checked (" + esc(checkedText()) + "). The IPU check below is for tomorrow.</p>" + sourceLine(o.today) + rrLine(o.today, true) + staleNote;
       return { closed: false, any: true, html: html };
     }
     if (o.upcoming) {
@@ -1279,7 +1391,7 @@
     }
     if (o.ended) {
       html = '<p class="off-note"><span class="off-chip">Official</span> The announced closure here ended on ' + esc(dayShort(o.ended.to)) +
-        ". No extension had been reported by Bernama when announcements were last checked (" + esc(checkedText()) + ").</p>" + sourceLine(o.ended);
+        ". No extension had been reported by Bernama when announcements were last checked (" + esc(checkedText()) + ").</p>" + sourceLine(o.ended) + rrLine(o.ended, true);
       return { closed: false, any: true, html: html + staleNote };
     }
     return { closed: false, any: false, html: '<p class="off-none">No official closure reported by Bernama for ' +
@@ -1657,9 +1769,13 @@
       "<p>Sources:</p><ul>" + r.sources.map(function (s) { return '<li><a href="' + esc(s.url) + '" rel="noopener">' + esc(s.title) + "</a> (" + esc(s.date) + ")</li>"; }).join("") + "</ul></div></details>" +
       "<details><summary>Official closure announcements</summary><div>" +
       "<p>When a state or KPM announces that schools are closed, the closure check shows it as <b>officially closed</b> for the area and dates announced, instead of the IPU prediction. " +
-      "Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama twice a day, at about 4 pm and 7 pm, and adds new closures and extensions.</p>" +
+      "Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama three times a day, at about 6 am, 4 pm and 7 pm, and adds new closures and extensions.</p>" +
       "<p>The site works out which state and district a school or place is in from the official district boundaries published by data.gov.my, so a closure for a state or district is applied to every place inside it. " +
-      "Announcements made after 7 pm only appear after the next day\'s 4 pm check. Always confirm with your school or the State Education Department (JPN).</p></div></details>" +
+      "Announcements made after 7 pm appear after the 6 am check the next morning. Always confirm with your school or the State Education Department (JPN).</p></div></details>" +
+      "<details><summary>Rule vs reality</summary><div>" +
+      "<p>For every official closure, the site compares the official DOE readings in the closed area with the national rule, under which schools in the affected area close once the IPU reaches 200. " +
+      "It looks at the 24 hours and the 3 days before the announcement, and at the highest reading each day from 2 days before until the closure ends. " +
+      "A closure that \"went further than the national rule\" is not wrong: states can decide on other grounds, such as health data or the weather outlook. The comparison only shows how the decision relates to the readings.</p></div></details>" +
       "<details><summary>The forecast and the haze sources</summary><div>" +
       "<p>The forecast is an estimate made by this site, kept apart from the official readings. It takes the CAMS air-quality model's PM2.5 forecast (Copernicus Atmosphere Monitoring Service, via Open-Meteo) at each station and scales it to that station's official IPU over the last 24 hours. " +
       "It is shown only next to a current official reading, always labelled as an estimate, and never used for the school closure check, which uses DOE APIMS readings only.</p>" +
@@ -1825,8 +1941,10 @@
     return Promise.all([
       getJSON("data/forecast.json").catch(function () { return null; }),
       getJSON("data/sources.json").catch(function () { return null; }),
-      getJSON("data/announcements.json").catch(function () { return null; })
+      getJSON("data/announcements.json").catch(function () { return null; }),
+      getJSON("data/rule_reality.json").catch(function () { return null; })
     ]).then(function (r) {
+      S.rr = r[3];
       var newHist = r[1] && S.sources && r[1].generated_at !== S.sources.generated_at;
       S.forecast = r[0]; S.sources = r[1]; S.ann = r[2];
       if (newHist) { S.windHist = null; S.trace = null; }
@@ -1910,7 +2028,7 @@
       if (window.innerWidth === lastW) return;          // ignore mobile toolbar show/hide
       lastW = window.innerWidth;
       clearTimeout(rt);
-      rt = setTimeout(function () { renderSelection(false); renderDosm(); drawLag(); }, 200);
+      rt = setTimeout(function () { renderSelection(false); renderDosm(); drawLag(); drawAllRR(); }, 200);
     });
     window.addEventListener("hashchange", function () { var h = readHash(); if (h) select(h, { keepHash: true }); });
   }

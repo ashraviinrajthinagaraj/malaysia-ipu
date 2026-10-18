@@ -102,7 +102,11 @@ These two features are kept apart from the official data and are labelled on the
 - Where a school or place falls inside an announced closure, the closure check shows **Officially closed** with the dates and the Bernama link, instead of the IPU prediction. Closed areas are hatched on the map, and the header shows a banner.
 - `docs/data/boundaries.json` holds the official district boundaries from data.gov.my (simplified with `scripts/build_boundaries.py`), used to find which state and district a place is in.
 - `scripts/check_announcements.py` validates the file; the tests run it on every change.
-- A scheduled task checks Bernama twice a day, at about 4 pm and 7 pm Malaysia time, and updates the file (procedure: `scripts/ANNOUNCEMENTS_CHECK.md`).
+- A scheduled task checks Bernama three times a day, at about 6 am, 4 pm and 7 pm Malaysia time, and updates the file (procedure: `scripts/ANNOUNCEMENTS_CHECK.md`).
+
+## Rule vs reality
+
+`scripts/rule_vs_reality.py` runs every hour. For each official closure (Bernama sources only) it compares the official DOE APIMS readings in the closed area with the national rule (schools close once the IPU reaches 200): the 24 hours and 3 days before the announcement, and the highest reading on each day from 2 days before to the end of the closure. Older hours come from the APIMS hourly table, which keeps about a week, and are saved in `data_cache/closure_hours.json` so they are not lost. The result, `docs/data/rule_reality.json`, is shown under each closure and in the closure check.
 
 ## Files
 

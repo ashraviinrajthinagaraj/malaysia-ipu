@@ -455,6 +455,25 @@ details li { margin-bottom: .35rem; }
 [data-theme="neon"] .closed-label { color: #1a0410; box-shadow: 0 0 16px -2px var(--closed); }
 [data-theme="neon"] .off-chip { color: #1a0410; box-shadow: 0 0 10px -2px var(--closed); }
 
+/* ---------------------------------------------------------------- rule vs reality */
+.rr { margin: 10px 0 6px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.rr h4 { font: 650 1rem var(--display); margin: 0 0 6px; }
+.rr-line { font-size: .925rem; color: var(--ink-2); margin: 8px 0; }
+.rr-chip { display: inline-block; font-size: .75rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; margin-right: 8px; vertical-align: 1px;
+  border: 1.5px solid var(--ink-2); color: var(--ink); }
+.rr-chip.beyond { border-color: var(--closed); color: var(--closed); }
+.rr-chip.matches { border-color: var(--ok-line); color: var(--ink); }
+.rr-chip.partly { border-color: var(--warn-line); color: var(--ink); }
+.rr-link { white-space: nowrap; }
+.rr-chart { margin-top: 8px; }
+.rr-key-closed { width: 14px; height: 10px; border-radius: 2px; display: inline-block;
+  background: repeating-linear-gradient(45deg, var(--closed) 0 2px, transparent 2px 6px); opacity: .55; }
+.rr-key-line { width: 18px; height: 0; border-top: 2px dashed var(--closed); display: inline-block; }
+.rr-key-faded { width: 10px; height: 10px; border-radius: 2px; background: var(--ink-2); opacity: .45; display: inline-block; }
+.rr-past-h { margin-top: 18px; }
+.closure-item.ended { border-left-color: var(--line); }
+[data-theme="neon"] .rr-chip.beyond { box-shadow: 0 0 10px -2px var(--closed); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

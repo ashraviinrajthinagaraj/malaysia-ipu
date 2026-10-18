@@ -46,6 +46,10 @@ jobs:
         continue-on-error: true
         run: python3 scripts/fetch_apims.py
 
+      - name: Compare official closures with official readings (rule vs reality)
+        continue-on-error: true
+        run: python3 scripts/rule_vs_reality.py
+
       - name: Refresh DOSM historical data (at most weekly)
         continue-on-error: true
         run: python3 scripts/fetch_dosm.py

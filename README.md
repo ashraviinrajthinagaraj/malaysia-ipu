@@ -102,7 +102,7 @@ These two features are kept apart from the official data and are labelled on the
 - Where a school or place falls inside an announced closure, the closure check shows **Officially closed** with the dates and the Bernama link, instead of the IPU prediction. Closed areas are hatched on the map, and the header shows a banner.
 - `docs/data/boundaries.json` holds the official district boundaries from data.gov.my (simplified with `scripts/build_boundaries.py`), used to find which state and district a place is in.
 - `scripts/check_announcements.py` validates the file; the tests run it on every change.
-- A scheduled task checks Bernama every hour and updates the file (procedure: `scripts/ANNOUNCEMENTS_CHECK.md`).
+- A scheduled task checks Bernama every hour from about 6 am to 7 pm Malaysia time and updates the file (procedure: `scripts/ANNOUNCEMENTS_CHECK.md`).
 
 ## Rule vs reality
 

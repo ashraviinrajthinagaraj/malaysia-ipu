@@ -4,7 +4,7 @@
     "allowed_domains": ["bernama.com"],
     "summary": "Official school closure announcements are added only from Bernama reports. Every entry links to the Bernama article it comes from."
   },
-  "checked_at": "2026-10-18T14:00:00+08:00",
+  "checked_at": "2026-10-18T15:00:00+08:00",
   "updated_at": "2026-10-18T08:45:00+08:00",
   "closures": [
     {

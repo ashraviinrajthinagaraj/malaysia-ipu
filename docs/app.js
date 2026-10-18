@@ -436,7 +436,7 @@
           (started ? "closed " + esc(untilText(c)) : "close " + (c.until_further_notice ? "from " + esc(dayShort(c.from)) + " until further notice" : esc(rangeText(c.from, c.to)))) + "</p>" +
           '<p class="pred-detail">' + esc(c.covers) + (c.learning ? " " + esc(c.learning) : "") + "</p>" + sourceLine(c) + "</div>";
       });
-      html += '<p class="small muted">From Bernama reports only, checked every evening (last checked ' + esc(checkedText()) + "). Confirm with your school or JPN.</p>";
+      html += '<p class="small muted">From Bernama reports only, checked twice a day at about 4 pm and 7 pm (last checked ' + esc(checkedText()) + "). Confirm with your school or JPN.</p>";
     }
     if (annStale()) html += '<p class="note">Announcements were last checked more than a day ago, so a newer announcement may be missing.</p>';
     box.innerHTML = html;
@@ -1657,9 +1657,9 @@
       "<p>Sources:</p><ul>" + r.sources.map(function (s) { return '<li><a href="' + esc(s.url) + '" rel="noopener">' + esc(s.title) + "</a> (" + esc(s.date) + ")</li>"; }).join("") + "</ul></div></details>" +
       "<details><summary>Official closure announcements</summary><div>" +
       "<p>When a state or KPM announces that schools are closed, the closure check shows it as <b>officially closed</b> for the area and dates announced, instead of the IPU prediction. " +
-      "Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama every evening and adds new closures and extensions.</p>" +
+      "Announcements are added only from <b>Bernama</b> reports, and every one links to the Bernama article. A scheduled check reads Bernama twice a day, at about 4 pm and 7 pm, and adds new closures and extensions.</p>" +
       "<p>The site works out which state and district a school or place is in from the official district boundaries published by data.gov.my, so a closure for a state or district is applied to every place inside it. " +
-      "Announcements made late at night may only appear after the next check. Always confirm with your school or the State Education Department (JPN).</p></div></details>" +
+      "Announcements made after 7 pm only appear after the next day\'s 4 pm check. Always confirm with your school or the State Education Department (JPN).</p></div></details>" +
       "<details><summary>The forecast and the haze sources</summary><div>" +
       "<p>The forecast is an estimate made by this site, kept apart from the official readings. It takes the CAMS air-quality model's PM2.5 forecast (Copernicus Atmosphere Monitoring Service, via Open-Meteo) at each station and scales it to that station's official IPU over the last 24 hours. " +
       "It is shown only next to a current official reading, always labelled as an estimate, and never used for the school closure check, which uses DOE APIMS readings only.</p>" +

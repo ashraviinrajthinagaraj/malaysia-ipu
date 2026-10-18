@@ -1,6 +1,6 @@
 # Daily check: official school closure announcements (Bernama only)
 
-This procedure is run every evening by a scheduled task. It keeps
+This procedure is run by a scheduled task twice a day, at about 4 pm and 7 pm Malaysia time. It keeps
 `docs/data/announcements.json` up to date so the site shows official haze
 school closures correctly. Follow it exactly.
 
@@ -62,7 +62,7 @@ school closures correctly. Follow it exactly.
    - **Same closure reported again:** do not add a duplicate; you may add the
      new Bernama link to `sources`.
    - Always set `checked_at` to the current Malaysia time
-     (e.g. `2026-10-18T22:45:00+08:00`). Set `updated_at` and the entry's
+     (e.g. `2026-10-18T19:00:00+08:00`). Set `updated_at` and the entry's
      `added_at` when closures change.
 6. Area names must match `boundaries.json` exactly:
    - Whole states: `"area": {"states": ["Johor"]}`.

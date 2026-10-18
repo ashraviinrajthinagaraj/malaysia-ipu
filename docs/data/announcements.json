@@ -15,7 +15,7 @@
     11
   ],
   "check_note": "Checked every hour from 6 am to 7 pm, June to November (the haze season). From December to May the check is paused.",
-  "checked_at": "2026-10-18T16:05:00+08:00",
+  "checked_at": "2026-10-18T17:00:00+08:00",
   "updated_at": "2026-10-18T08:45:00+08:00",
   "closures": [
     {
@@ -60,6 +60,12 @@
           "url": "https://www.bernama.com/bm/am/news.php?id=2622007",
           "published": "2026-10-18T13:25:00+08:00",
           "language": "ms"
+        },
+        {
+          "title": "Johor Religious Examinations to Proceed As Scheduled - JAINJ",
+          "url": "https://www.bernama.com/en/general/news.php?id=2622013",
+          "published": "2026-10-18T13:37:00+08:00",
+          "language": "en"
         }
       ],
       "added_at": "2026-10-18T08:45:00+08:00"

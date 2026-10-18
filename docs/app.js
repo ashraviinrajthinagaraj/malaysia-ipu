@@ -127,7 +127,7 @@
         var a = c.area || {}, st = (a.states && a.states[0]) || a.state || "";
         var started = c.from <= L.mytDateKey(n);
         html += '<button type="button" class="closure-banner" data-state="' + esc(st) + '"><span class="off-chip">Official</span>' +
-          "Schools in " + esc(L.areaLabel(c)) + (started ? " closed until " + esc(dayShort(c.to)) : " close " + esc(rangeText(c.from, c.to))) + "</button>";
+          "Schools in " + esc(L.areaLabel(c)) + (started ? " closed " + esc(untilText(c)) : " close " + (c.until_further_notice ? "from " + esc(dayShort(c.from)) + " until further notice" : esc(rangeText(c.from, c.to)))) + "</button>";
       });
     }
     box.innerHTML = html;
@@ -433,7 +433,7 @@
       list.forEach(function (c) {
         var started = c.from <= L.mytDateKey(n);
         html += '<div class="closure-item"><p class="ci-head"><span class="off-chip">Official</span><b>' + esc(L.areaLabel(c)) + "</b>: schools " +
-          (started ? "closed until " + esc(dayShort(c.to)) : "close " + esc(rangeText(c.from, c.to))) + "</p>" +
+          (started ? "closed " + esc(untilText(c)) : "close " + (c.until_further_notice ? "from " + esc(dayShort(c.from)) + " until further notice" : esc(rangeText(c.from, c.to)))) + "</p>" +
           '<p class="pred-detail">' + esc(c.covers) + (c.learning ? " " + esc(c.learning) : "") + "</p>" + sourceLine(c) + "</div>";
       });
       html += '<p class="small muted">From Bernama reports only, checked every evening (last checked ' + esc(checkedText()) + "). Confirm with your school or JPN.</p>";
@@ -456,7 +456,7 @@
           geometry: { type: "MultiPolygon", coordinates: d.polygons } });
         w = Math.min(w, d.bbox[0]); so = Math.min(so, d.bbox[1]); e = Math.max(e, d.bbox[2]); no = Math.max(no, d.bbox[3]);
       });
-      if (hit) labels.push({ lon: e + 0.12, lat: (so + no) / 2, text: "Schools closed until " + dayShort(c.to) });
+      if (hit) labels.push({ lon: e + 0.12, lat: (so + no) / 2, text: "Schools closed " + untilText(c) });
     });
     return { geo: out, labels: labels };
   }
@@ -1215,6 +1215,7 @@
   }
 
   function dayShort(key) { return L.fmtDayKey(key).replace(/ \d{4}$/, ""); }
+  function untilText(c, last) { return c.until_further_notice ? "until further notice" : "until " + dayShort(last || c.to); }
   function rangeText(from, to) { return from === to ? dayShort(from) : dayShort(from) + " to " + dayShort(to); }
 
   function checkedText() {
@@ -1258,9 +1259,11 @@
     var staleNote = stale ? '<p class="note">Announcements were last checked ' + esc(checkedText()) + ", more than a day ago, so a newer announcement may be missing.</p>" : "";
     if (o.tomorrow) {
       var c = o.tomorrow, last = o.lastDay || c.to;
-      html = '<div class="pred-status official_closed"><span class="off-chip">Official</span>Schools closed ' + esc(rangeText(o.today ? o.today.from : c.from, last)) + "</div>" +
+      var ufn = c.until_further_notice || (o.today && o.today.until_further_notice);
+      html = '<div class="pred-status official_closed"><span class="off-chip">Official</span>Schools closed ' +
+        esc(ufn ? "from " + dayShort(o.today ? o.today.from : c.from) + " until further notice" : rangeText(o.today ? o.today.from : c.from, last)) + "</div>" +
         '<p class="pred-detail"><b>' + (o.today ? "Schools here are closed today and tomorrow" : "Schools here are closed from tomorrow") + ".</b> " +
-        "An official closure covers " + esc(L.areaLabel(c)) + " until " + esc(dayShort(last)) + "." + (last !== c.to ? " It includes a later extension." : "") + "</p>" +
+        "An official closure covers " + esc(L.areaLabel(c)) + " " + esc(ufn ? "until further notice" : "until " + dayShort(last)) + "." + (last !== c.to && !ufn ? " It includes a later extension." : "") + "</p>" +
         closureDetails(c) + staleNote;
       return { closed: true, any: true, html: html };
     }

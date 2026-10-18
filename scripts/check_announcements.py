@@ -2,6 +2,8 @@
 """Check docs/data/announcements.json before it is published.
 
 Rules:
+  * a closure announced "until further notice" has until_further_notice: true and a 'to'
+    date that the daily check moves forward one day at a time while no reopening is reported;
   * every closure has an id, an area, from/to dates (YYYY-MM-DD, from <= to,
     at most 31 days), what it covers, who announced it and when;
   * every source is an https link on an allowed domain (Bernama only);
@@ -65,6 +67,10 @@ def check(data, bounds):
         for k in ("covers", "announced_by"):
             if not str(c.get(k) or "").strip():
                 errors.append(f"{where}: missing {k}")
+        if "until_further_notice" in c and not isinstance(c["until_further_notice"], bool):
+            errors.append(f"{where}: until_further_notice must be true or false")
+        if c.get("until_further_notice") and f and t and (t - f).days > 31:
+            errors.append(f"{where}: an open-ended closure is extended one day at a time; 'to' is too far ahead")
         if not parse_day(c.get("announced_on")):
             errors.append(f"{where}: announced_on must be a date")
         area = c.get("area") or {}

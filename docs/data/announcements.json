@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "source_policy": {
+    "allowed_domains": ["bernama.com"],
+    "summary": "Official school closure announcements are added only from Bernama reports. Every entry links to the Bernama article it comes from."
+  },
+  "checked_at": "2026-10-18T08:45:00+08:00",
+  "updated_at": "2026-10-18T08:45:00+08:00",
+  "closures": [
+    {
+      "id": "johor-2026-10-19",
+      "area": { "states": ["Johor"] },
+      "from": "2026-10-19",
+      "to": "2026-10-23",
+      "dates_note": "Five more days starting Monday 19 October, which ends on Friday 23 October. Reopening is reviewed before then.",
+      "covers": "All schools and educational institutions throughout Johor.",
+      "not_covered": "Private educational institutions and childcare centres decide for themselves whether to open; those that open must operate indoors with face masks.",
+      "learning": "Home-based teaching and learning (PdPR) continues.",
+      "exceptions": "Limited exemptions may be considered for students sitting exams or assessments, coordinated with the Johor State Education Department (JPNJ).",
+      "announced_by": "Dr Muhammad Naqib Md Ghazali, Johor Education and Information Committee chairman, after a meeting of the Johor Haze Management Coordination Committee",
+      "announced_on": "2026-10-17",
+      "previous": "Extends the closure of all Johor schools from 12 to 16 October.",
+      "sources": [
+        {
+          "title": "Haze: Schools, educational institutions in Johor to close for another five days from Monday",
+          "url": "https://www.bernama.com/en/general/news.php?id=2621869",
+          "published": "2026-10-17T22:09:00+08:00",
+          "language": "en"
+        },
+        {
+          "title": "Jerebu: Sekolah, institusi pendidikan Johor ditutup lima hari lagi bermula Isnin",
+          "url": "https://www.bernama.com/bm/am/news.php?id=2621868",
+          "published": "2026-10-17T22:12:00+08:00",
+          "language": "ms"
+        }
+      ],
+      "added_at": "2026-10-18T08:45:00+08:00"
+    }
+  ]
+}

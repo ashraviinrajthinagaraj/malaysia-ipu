@@ -594,8 +594,102 @@
     return zones;
   }
 
+  // ------------------------------------------------------------ official closure announcements
+
+  function districtKey(s) { return norm(s).replace(/^(daerah|district of|ppd)\s+/, ""); }
+
+  /* State and district of a point, from the official district boundaries. */
+  function locate(lon, lat, bounds) {
+    if (!bounds || !bounds.districts || typeof lon !== "number" || typeof lat !== "number") return null;
+    var ds = bounds.districts;
+    for (var i = 0; i < ds.length; i++) {
+      var d = ds[i], b = d.bbox;
+      if (lon < b[0] || lon > b[2] || lat < b[1] || lat > b[3]) continue;
+      for (var p = 0; p < d.polygons.length; p++) {
+        var poly = d.polygons[p];
+        if (inPoly(lon, lat, poly[0])) {
+          var inHole = false;
+          for (var h = 1; h < poly.length; h++) if (inPoly(lon, lat, poly[h])) { inHole = true; break; }
+          if (!inHole) return { state: d.state, district: d.district };
+        }
+      }
+    }
+    return null;
+  }
+
+  function isAllowedSource(url, domains) {
+    var m = /^https:\/\/([^\/?#]+)/i.exec(String(url || ""));
+    if (!m) return false;
+    var host = m[1].toLowerCase().replace(/:\d+$/, "");
+    return (domains || []).some(function (d) { d = d.toLowerCase(); return host === d || host.slice(-(d.length + 1)) === "." + d; });
+  }
+
+  /* An entry is used only if its dates are valid and every source is on an allowed domain (Bernama). */
+  function validClosure(c, policy) {
+    var dom = (policy && policy.allowed_domains) || ["bernama.com"];
+    var re = /^\d{4}-\d{2}-\d{2}$/;
+    if (!c || !re.test(c.from || "") || !re.test(c.to || "") || c.from > c.to) return false;
+    if (!c.sources || !c.sources.length) return false;
+    return c.sources.every(function (s) { return isAllowedSource(s.url, dom); });
+  }
+
+  function closureCovers(c, place) {
+    var a = c.area || {};
+    if (!place) return false;
+    if (a.school_codes && place.code && a.school_codes.some(function (x) { return norm(x) === norm(place.code); })) return true;
+    if (a.states && place.state && a.states.some(function (s) { return sameState(s, place.state); })) return true;
+    if (a.districts && a.state && place.state && place.district && sameState(a.state, place.state)) {
+      return a.districts.some(function (d) { return districtKey(d) === districtKey(place.district); });
+    }
+    return false;
+  }
+
+  /* Official status of a place around today, from Bernama-reported announcements.
+     place: {state, district, code}. Returns the closures that apply today and tomorrow,
+     one that starts later, and one that ended in the last 3 days. */
+  function officialStatus(place, now, ann) {
+    var todayKey = mytDateKey(now), tomorrowKey = addDaysKey(todayKey, 1);
+    var list = ((ann && ann.closures) || []).filter(function (c) { return validClosure(c, ann.source_policy) && closureCovers(c, place); });
+    function on(day) { return list.filter(function (c) { return c.from <= day && day <= c.to; }).sort(function (a, b) { return a.to < b.to ? 1 : -1; })[0] || null; }
+    var today = on(todayKey), tomorrow = on(tomorrowKey);
+    var upcoming = list.filter(function (c) { return c.from > tomorrowKey && c.from <= addDaysKey(todayKey, 14); })
+      .sort(function (a, b) { return a.from < b.from ? -1 : 1; })[0] || null;
+    var ended = (!today && !tomorrow) ? (list.filter(function (c) { return c.to < todayKey && c.to >= addDaysKey(todayKey, -3); })
+      .sort(function (a, b) { return a.to < b.to ? 1 : -1; })[0] || null) : null;
+    // the last day of the whole closure run (consecutive or overlapping entries)
+    var lastDay = null;
+    if (tomorrow || today) {
+      lastDay = (tomorrow || today).to;
+      var grew = true;
+      while (grew) {
+        grew = false;
+        list.forEach(function (c) { if (c.from <= addDaysKey(lastDay, 1) && c.to > lastDay) { lastDay = c.to; grew = true; } });
+      }
+    }
+    return { today: today, tomorrow: tomorrow, upcoming: upcoming, ended: ended, lastDay: lastDay,
+             todayKey: todayKey, tomorrowKey: tomorrowKey, all: list };
+  }
+
+  /* All valid closures active today or starting within 14 days, for the overview. */
+  function activeClosures(ann, now) {
+    var todayKey = mytDateKey(now), limit = addDaysKey(todayKey, 14);
+    return ((ann && ann.closures) || []).filter(function (c) {
+      return validClosure(c, ann.source_policy) && c.to >= todayKey && c.from <= limit;
+    }).sort(function (a, b) { return a.from < b.from ? -1 : 1; });
+  }
+
+  function areaLabel(c) {
+    var a = c.area || {};
+    if (a.states && a.states.length) return a.states.join(", ");
+    if (a.districts && a.districts.length) return a.districts.join(", ") + " (" + a.state + ")";
+    if (a.school_codes) return a.school_codes.length + " listed school" + (a.school_codes.length > 1 ? "s" : "");
+    return "";
+  }
+
   var api = {
-    TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, windHistAt: windHistAt, backTrajectory: backTrajectory,
+    TZ: TZ, forecastStatus: forecastStatus, windFrom: windFrom, locate: locate, validClosure: validClosure,
+    closureCovers: closureCovers, officialStatus: officialStatus, activeClosures: activeClosures, areaLabel: areaLabel,
+    isAllowedSource: isAllowedSource, windHistAt: windHistAt, backTrajectory: backTrajectory,
     regionOf: regionOf, pathRegions: pathRegions, firesNearPath: firesNearPath, coverageZones: coverageZones, inPoly: inPoly, STALE_HOURS: STALE_HOURS, CATEGORIES: CATEGORIES, categoryFor: categoryFor, pollutantName: pollutantName,
     parseTime: parseTime, mytDateKey: mytDateKey, fmtTime: fmtTime, fmtDateTime: fmtDateTime, fmtDayKey: fmtDayKey,
     addDaysKey: addDaysKey, weekdayOfKey: weekdayOfKey, ago: ago, freshness: freshness, stationCurrent: stationCurrent,

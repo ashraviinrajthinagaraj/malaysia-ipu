@@ -15,6 +15,7 @@
     "summary": "All outdoor activities stop when the IPU is above 100."
   },
   "how_applied": [
+    "Official closure announcements come first: where Bernama has reported an announced closure covering the place and date, the site shows it as officially closed, whatever the IPU reading. The IPU check is then shown only for reference.",
     "Reading used: the hourly IPU published by DOE APIMS for the reference monitoring station (the nearest station with a current reading).",
     "Threshold reached today: the latest reading, or any hourly reading earlier today (Malaysia time), is 200 or more.",
     "If reached: the dashboard says schools in the affected area may be closed tomorrow. PTJK closure takes effect immediately, so a closure may already apply today.",
@@ -22,7 +23,7 @@
     "Weekends and year-end school holidays are shown as 'no school' days. Public holidays and state-specific holidays are not included.",
     "No prediction is shown when the reference station has no reading from the last 3 hours."
   ],
-  "who_decides": "Closures are decided and announced by KPM, the State Education Departments (JPN) and District Education Offices (PPD). Since 10 Oct 2026, State Education Directors announce daily school status based on DOE readings. This dashboard does not know whether a closure has been announced.",
+  "who_decides": "Closures are decided and announced by KPM, the state governments and education departments (JPN) and District Education Offices (PPD). This site shows announced closures only as reported by Bernama, checked every evening, and otherwise predicts from the IPU rule. Since 10 Oct 2026, State Education Directors announce daily school status based on DOE readings.",
   "previous_rules": [
     {
       "from": "2026-10-08",
@@ -32,20 +33,66 @@
   ],
   "stale_after_hours": 3,
   "weekend": {
-    "Kedah": ["Fri", "Sat"],
-    "Kelantan": ["Fri", "Sat"],
-    "Terengganu": ["Fri", "Sat"],
-    "default": ["Sat", "Sun"]
+    "Kedah": [
+      "Fri",
+      "Sat"
+    ],
+    "Kelantan": [
+      "Fri",
+      "Sat"
+    ],
+    "Terengganu": [
+      "Fri",
+      "Sat"
+    ],
+    "default": [
+      "Sat",
+      "Sun"
+    ]
   },
   "school_holidays": [
-    {"states": ["Kedah", "Kelantan", "Terengganu"], "from": "2026-12-04", "to": "2026-12-31", "name": "Year-end school holiday (Cuti Akhir Persekolahan, Group A)"},
-    {"states": "others", "from": "2026-12-05", "to": "2026-12-31", "name": "Year-end school holiday (Cuti Akhir Persekolahan, Group B)"}
+    {
+      "states": [
+        "Kedah",
+        "Kelantan",
+        "Terengganu"
+      ],
+      "from": "2026-12-04",
+      "to": "2026-12-31",
+      "name": "Year-end school holiday (Cuti Akhir Persekolahan, Group A)"
+    },
+    {
+      "states": "others",
+      "from": "2026-12-05",
+      "to": "2026-12-31",
+      "name": "Year-end school holiday (Cuti Akhir Persekolahan, Group B)"
+    }
   ],
   "sources": [
-    {"title": "MOE reverts to National Haze Action Plan guidelines on school closures, says Fadhlina (Bernama, via The Sun)", "date": "2026-10-15", "url": "https://thesun.my/news/malaysia-news/people-issues/moe-reverts-to-national-haze-action-plan-guidelines-on-school-closures-says-fadhlina/"},
-    {"title": "KPM kembali ikut pelan jerebu kebangsaan, sekolah tutup apabila IPU 200 (Malaysia Gazette)", "date": "2026-10-15", "url": "https://malaysiagazette.com/2026/10/15/kpm-kembali-ikut-pelan-jerebu-kebangsaan-sekolah-tutup-apabila-ipu-200/"},
-    {"title": "Jerebu: Sekolah ditutup mulai esok, jika IPU lebih 180 – KPM (Berita RTM) – the interim rule", "date": "2026-10-08", "url": "https://berita.rtm.gov.my/?p=706955"},
-    {"title": "KPM statement on daily school status announcements by State Education Directors (Bernama)", "date": "2026-10-10", "url": "https://bernama.com/bm/news.php?id=2618393"},
-    {"title": "Kalendar Akademik 2026 – KPM (Group A / Group B states, year-end holidays)", "date": "2025-10", "url": "https://www.kabinet.gov.my/storage/2025/10/SS-KPM-Bil.-3-2025-Kalendar-Akademik-2026-1.pdf"}
+    {
+      "title": "MOE reverts to National Haze Action Plan guidelines on school closures, says Fadhlina (Bernama, via The Sun)",
+      "date": "2026-10-15",
+      "url": "https://thesun.my/news/malaysia-news/people-issues/moe-reverts-to-national-haze-action-plan-guidelines-on-school-closures-says-fadhlina/"
+    },
+    {
+      "title": "KPM kembali ikut pelan jerebu kebangsaan, sekolah tutup apabila IPU 200 (Malaysia Gazette)",
+      "date": "2026-10-15",
+      "url": "https://malaysiagazette.com/2026/10/15/kpm-kembali-ikut-pelan-jerebu-kebangsaan-sekolah-tutup-apabila-ipu-200/"
+    },
+    {
+      "title": "Jerebu: Sekolah ditutup mulai esok, jika IPU lebih 180 – KPM (Berita RTM) – the interim rule",
+      "date": "2026-10-08",
+      "url": "https://berita.rtm.gov.my/?p=706955"
+    },
+    {
+      "title": "KPM statement on daily school status announcements by State Education Directors (Bernama)",
+      "date": "2026-10-10",
+      "url": "https://bernama.com/bm/news.php?id=2618393"
+    },
+    {
+      "title": "Kalendar Akademik 2026 – KPM (Group A / Group B states, year-end holidays)",
+      "date": "2025-10",
+      "url": "https://www.kabinet.gov.my/storage/2025/10/SS-KPM-Bil.-3-2025-Kalendar-Akademik-2026-1.pdf"
+    }
   ]
 }

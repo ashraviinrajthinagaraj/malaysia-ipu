@@ -96,6 +96,14 @@ These two features are kept apart from the official data and are labelled on the
 - **Which station covers me:** with "Use my location", the map divides the country into the area closest to each station with a current reading and highlights the one you are in.
 - **How the IPU works:** an interactive section near the bottom explains the six pollutants, the 24-hour average and why the IPU lags behind visible haze, using an illustration with made-up numbers.
 
+## Official closure announcements (Bernama only)
+
+- `docs/data/announcements.json` lists official school closures. Every entry needs an area (states, districts or school codes), dates, what it covers, who announced it and at least one **Bernama** source link. The page ignores any entry whose sources are not on bernama.com.
+- Where a school or place falls inside an announced closure, the closure check shows **Officially closed** with the dates and the Bernama link, instead of the IPU prediction. Closed areas are hatched on the map, and the header shows a banner.
+- `docs/data/boundaries.json` holds the official district boundaries from data.gov.my (simplified with `scripts/build_boundaries.py`), used to find which state and district a place is in.
+- `scripts/check_announcements.py` validates the file; the tests run it on every change.
+- A scheduled task checks Bernama every evening and updates the file.
+
 ## Files
 
 ```

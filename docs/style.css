@@ -428,6 +428,34 @@ details li { margin-bottom: .35rem; }
 [data-theme="neon"] .airpath { box-shadow: 0 0 26px -12px var(--trace); }
 [data-theme="neon"] .day { color: #04120e; box-shadow: 0 0 12px -1px var(--trace); }
 
+/* ---------------------------------------------------------------- official closures */
+.off-chip { display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px;
+  background: var(--closed); color: #fff; margin-right: 8px; vertical-align: 2px; }
+.pred-status.official_closed { background: var(--alert-bg); border-color: var(--closed); border-width: 2px; }
+.pred-status.official_info { background: var(--mist); border-color: var(--closed); }
+.off-note { margin: 0 0 6px; color: var(--ink); }
+.off-src { font-size: .85rem; color: var(--ink-2); margin: 6px 0 12px; }
+.off-none { font-size: .875rem; color: var(--muted); margin: 0 0 10px; }
+.ipu-ref { margin: 4px 0 6px; }
+.ipu-ref > div { padding-top: 4px; }
+.closure-banner { flex-basis: 100%; display: block; text-align: left; margin-top: 8px; padding: 10px 12px; border-radius: 12px;
+  border: 1.5px solid var(--closed); background: var(--alert-bg); color: var(--ink); font-weight: 600; font-size: .925rem; }
+.closure-banner:hover { filter: brightness(.97); }
+.closures:empty { display: none; }
+.closures { margin-bottom: 18px; }
+.closures h3 { margin-top: 0; }
+.closure-item { border-left: 3px solid var(--closed); padding: 2px 0 2px 12px; margin-bottom: 10px; }
+.ci-head { margin: 0 0 4px; }
+.closed-wrap { width: 0; height: 0; }
+.closed-label { position: absolute; transform: translate(0, -50%); white-space: nowrap; background: var(--closed); color: #fff;
+  font: 700 12px/1 var(--text); padding: 6px 10px; border-radius: 999px; box-shadow: 0 3px 10px var(--shadow); pointer-events: none; }
+:root { --closed: #b42318; }
+:root[data-theme="neon"] { --closed: #ff3d81; }
+[data-theme="neon"] .closure-banner, [data-theme="neon"] .pred-status.official_closed { box-shadow: 0 0 22px -6px var(--closed); }
+[data-theme="neon"] .closed-label { color: #1a0410; box-shadow: 0 0 16px -2px var(--closed); }
+[data-theme="neon"] .off-chip { color: #1a0410; box-shadow: 0 0 10px -2px var(--closed); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.zoom-low .closed-label { display: none; }

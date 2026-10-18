@@ -243,3 +243,49 @@ test("coverage zones: each point lies in the zone of its nearest station", () =>
   assert.ok(L.inPoly(101.9, 3.1, z.B));
   assert.ok(L.inPoly(101.5, 4.5, z.C));
 });
+
+// ---- official closure announcements
+const ANN = require("../docs/data/announcements.json");
+const BOUNDS = require("../docs/data/boundaries.json");
+
+test("places are located in the right state and district", () => {
+  assert.deepEqual(L.locate(103.76, 1.49, BOUNDS), { state: "Johor", district: "Johor Bahru" });
+  assert.deepEqual(L.locate(102.93, 1.85, BOUNDS), { state: "Johor", district: "Batu Pahat" });
+  assert.equal(L.locate(101.45, 3.04, BOUNDS).state, "Selangor");
+  assert.equal(L.locate(102.25, 2.19, BOUNDS).state, "Melaka");
+  assert.equal(L.locate(101.69, 3.14, BOUNDS).state, "W.P. Kuala Lumpur");
+  assert.equal(L.locate(105.0, 3.0, BOUNDS), null);              // sea
+});
+
+test("Johor closure applies Mon 19 to Fri 23 Oct", () => {
+  const jb = { state: "Johor", district: "Johor Bahru" };
+  const sun = L.officialStatus(jb, new Date("2026-10-18T08:30:00+08:00"), ANN);
+  assert.equal(sun.today, null);
+  assert.equal(sun.tomorrow.id, "johor-2026-10-19");
+  assert.equal(sun.lastDay, "2026-10-23");
+  const fri = L.officialStatus(jb, new Date("2026-10-23T09:00:00+08:00"), ANN);
+  assert.equal(fri.today.id, "johor-2026-10-19");
+  assert.equal(fri.tomorrow, null);                               // ends today
+  const mon = L.officialStatus(jb, new Date("2026-10-26T09:00:00+08:00"), ANN);
+  assert.equal(mon.ended.id, "johor-2026-10-19");                 // ended recently, no extension
+  const kl = L.officialStatus({ state: "W.P. Kuala Lumpur" }, new Date("2026-10-18T08:30:00+08:00"), ANN);
+  assert.equal(kl.tomorrow, null);
+  assert.equal(L.officialStatus({ state: "Johor" }, new Date("2026-10-18T08:30:00+08:00"), ANN).tomorrow.id, "johor-2026-10-19");
+});
+
+test("district and school-level closures, extensions, and source checks", () => {
+  const ann = { source_policy: { allowed_domains: ["bernama.com"] }, closures: [
+    { id: "a", area: { state: "Johor", districts: ["Batu Pahat"] }, from: "2026-10-19", to: "2026-10-21", sources: [{ url: "https://www.bernama.com/x" }] },
+    { id: "b", area: { state: "Johor", districts: ["Batu Pahat"] }, from: "2026-10-22", to: "2026-10-27", sources: [{ url: "https://www.bernama.com/y" }] },
+    { id: "c", area: { school_codes: ["JBA0001"] }, from: "2026-10-19", to: "2026-10-19", sources: [{ url: "https://bernama.com/z" }] },
+    { id: "bad", area: { states: ["Selangor"] }, from: "2026-10-19", to: "2026-10-23", sources: [{ url: "https://www.example.com/fake" }] }
+  ] };
+  const now = new Date("2026-10-18T20:00:00+08:00");
+  const bp = L.officialStatus({ state: "Johor", district: "Batu Pahat" }, now, ann);
+  assert.equal(bp.tomorrow.id, "a");
+  assert.equal(bp.lastDay, "2026-10-27");                          // extension joined on
+  assert.equal(L.officialStatus({ state: "Johor", district: "Muar" }, now, ann).tomorrow, null);
+  assert.equal(L.officialStatus({ state: "Johor", district: "Muar", code: "JBA0001" }, now, ann).tomorrow.id, "c");
+  assert.equal(L.officialStatus({ state: "Selangor" }, now, ann).tomorrow, null);    // non-Bernama entry ignored
+  assert.equal(L.isAllowedSource("https://www.bernama.com.evil.net/x", ["bernama.com"]), false);
+});
